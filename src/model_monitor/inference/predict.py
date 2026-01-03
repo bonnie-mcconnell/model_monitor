@@ -1,0 +1,225 @@
+import csv
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional, Tuple, Any
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.metrics import accuracy_score, f1_score
+
+from model_monitor.config.settings import AppConfig
+from model_monitor.core.decision_engine import DecisionEngine
+from model_monitor.core.decisions import Decision
+from model_monitor.monitoring.metrics_history import MetricsHistory
+from model_monitor.monitoring.drift import DriftMonitor
+from model_monitor.monitoring.decision_history import DecisionHistory
+
+
+MODEL_PATH = Path("models/current.pkl")
+SCHEMA_PATH = Path("data/reference/feature_schema.json")
+LOG_PATH = Path("metrics/predictions.log")
+ACTIVE_FILE = Path("models/active.json")
+
+
+class Predictor:
+    """
+    Stateful batch inference wrapper.
+
+    Responsibilities:
+    - Load and hot-reload models
+    - Run inference
+    - Compute batch metrics
+    - Detect drift
+    - Produce decisions
+
+    Does NOT:
+    - Measure latency
+    - Execute retraining
+    - Promote or rollback models
+    """
+
+    def __init__(
+        self,
+        *,
+        config: AppConfig,
+        model_path: Path = MODEL_PATH,
+        active_file: Path = ACTIVE_FILE,
+        reference_features: Optional[np.ndarray] = None,
+        f1_baseline: float = 0.85,
+    ) -> None:
+        self.cfg = config
+        self.model_path = model_path
+        self.active_file = active_file
+
+        self.model: Optional[Any] = None
+        self._loaded_version: Optional[str] = None
+
+        self.f1_baseline = float(f1_baseline)
+        self.batch_index = 0
+
+        # --------------------------------------------------
+        # Feature schema
+        # --------------------------------------------------
+        if SCHEMA_PATH.exists():
+            with SCHEMA_PATH.open() as f:
+                self.feature_names: list[str] = json.load(f)
+        else:
+            self.feature_names = []
+
+        # --------------------------------------------------
+        # Monitoring & decisioning
+        # --------------------------------------------------
+        self.metrics = MetricsHistory()
+        self.decision_history = DecisionHistory()
+        self.decision_engine = DecisionEngine(config=self.cfg)
+
+        self.drift_monitor: Optional[DriftMonitor] = None
+        if reference_features is not None:
+            self.drift_monitor = DriftMonitor(
+                reference_features=reference_features,
+                config=self.cfg.drift,
+            )
+
+        if self.model_path.exists():
+            self.reload()
+
+    # --------------------------------------------------
+    # Version helpers
+    # --------------------------------------------------
+    def _load_active_version(self) -> Optional[str]:
+        if not self.active_file.exists():
+            return None
+        with self.active_file.open() as f:
+            return json.load(f).get("version")
+
+    @property
+    def active_model(self) -> Any:
+        if self.model is None:
+            raise RuntimeError("No active model loaded")
+        return self.model
+
+    # --------------------------------------------------
+    # Reload logic
+    # --------------------------------------------------
+    def reload(self) -> None:
+        self.model = joblib.load(self.model_path)
+        self._loaded_version = self._load_active_version()
+
+    def reload_if_changed(self) -> bool:
+        current_version = self._load_active_version()
+
+        if self.model is None:
+            if not self.model_path.exists():
+                raise RuntimeError("Model file missing")
+            self.reload()
+            return True
+
+        if current_version != self._loaded_version:
+            self.reload()
+            return True
+
+        return False
+
+    # --------------------------------------------------
+    # Prediction
+    # --------------------------------------------------
+    def predict_batch(
+        self,
+        X: pd.DataFrame,
+        y_true: Optional[pd.Series] = None,
+        *,
+        batch_id: str,
+    ) -> Tuple[np.ndarray, np.ndarray, Decision]:
+        if not isinstance(X, pd.DataFrame):
+            raise TypeError("X must be a pandas DataFrame")
+
+        X = X.reindex(columns=self.feature_names)
+        if X.isnull().any().any():
+            raise ValueError("Input batch missing required features")
+
+        self.batch_index += 1
+
+        model = self.active_model
+        probs = model.predict_proba(X)
+        preds = probs.argmax(axis=1)
+        confs = probs.max(axis=1)
+
+        accuracy = 0.0
+        f1 = 0.0
+        drift_score = 0.0
+        avg_conf = float(np.mean(confs))
+
+        if y_true is not None:
+            accuracy = float(accuracy_score(y_true, preds))
+            f1 = float(f1_score(y_true, preds, zero_division=0))
+
+        if self.drift_monitor is not None:
+            drift_score = float(self.drift_monitor.update(X.values))
+
+        decision = self.decision_engine.decide(
+            batch_index=self.batch_index,
+            f1=f1,
+            f1_baseline=self.f1_baseline,
+            drift_score=drift_score,
+        )
+
+        model_version = self._load_active_version()
+
+        self.decision_history.write(
+            batch_index=self.batch_index,
+            action=decision.action,
+            reason=decision.reason,
+            f1=f1,
+            f1_baseline=self.f1_baseline,
+            drift_score=drift_score,
+            model_version=model_version,
+        )
+
+        self._log_predictions(preds, confs, decision, batch_id)
+
+        return preds, confs, decision
+
+    # --------------------------------------------------
+    # Prediction logging
+    # --------------------------------------------------
+    def _log_predictions(
+        self,
+        preds: np.ndarray,
+        confs: np.ndarray,
+        decision: Decision,
+        batch_id: str,
+    ) -> None:
+        ts = datetime.now(timezone.utc).isoformat()
+        model_version = self._load_active_version()
+
+        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not LOG_PATH.exists()
+
+        with LOG_PATH.open("a", newline="") as f:
+            writer = csv.writer(f)
+
+            if write_header:
+                writer.writerow(
+                    [
+                        "ts",
+                        "batch_id",
+                        "prediction",
+                        "confidence",
+                        "decision",
+                        "model_version",
+                    ]
+                )
+
+            for p, c in zip(preds, confs):
+                writer.writerow(
+                    [
+                        ts,
+                        batch_id,
+                        int(p),
+                        round(float(c), 6),
+                        decision.action,
+                        model_version,
+                    ]
+                )

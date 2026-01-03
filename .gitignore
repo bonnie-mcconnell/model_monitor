@@ -1,0 +1,37 @@
+# Virtual environments
+.venv/
+venv/
+
+# Python packaging
+*.egg-info/
+dist/
+build/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs & metrics
+metrics/*.csv
+metrics/*.log
+metrics/*.json
+
+# Model artifacts
+models/*.pkl
+models/archive/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
+
+# make sure logging config is used properly everywhere
+
+# check run simulation
+# main.py dashboard.py, metrics.py, analytics.py
+# readme + test manually

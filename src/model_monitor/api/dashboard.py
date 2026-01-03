@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Query, HTTPException
+
+from model_monitor.monitoring.types import MetricRecord, DecisionType
+from model_monitor.storage.metrics_store import MetricsStore
+from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
+
+
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+# ---------------------------------------------------------------------
+# Stores
+# ---------------------------------------------------------------------
+
+metrics_store = MetricsStore()
+summary_store = MetricsSummaryStore()
+
+
+# ---------------------------------------------------------------------
+# Metrics ingestion (internal / admin)
+# ---------------------------------------------------------------------
+
+@router.post("/metrics")
+def write_metric(
+    batch_id: str,
+    n_samples: int,
+    accuracy: float,
+    f1: float,
+    avg_confidence: float,
+    drift_score: float,
+    decision_latency_ms: float,
+    action: DecisionType = "none",
+    reason: str = "",
+):
+    """
+    Write a single metric record.
+    """
+
+    record: MetricRecord = {
+        "timestamp": datetime.utcnow().timestamp(),
+        "batch_id": batch_id,
+        "n_samples": n_samples,
+        "accuracy": accuracy,
+        "f1": f1,
+        "avg_confidence": avg_confidence,
+        "drift_score": drift_score,
+        "decision_latency_ms": decision_latency_ms,
+        "action": action,
+        "reason": reason,
+        "previous_model": None,
+        "new_model": None,
+    }
+
+    metrics_store.write(record)
+
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------
+# Raw metrics access
+# ---------------------------------------------------------------------
+
+@router.get("/metrics/tail")
+def get_metrics_tail(
+    limit: int = Query(100, ge=1, le=1000),
+):
+    """
+    Return the most recent metric records.
+    """
+    return metrics_store.tail(limit=limit)
+
+
+@router.get("/metrics/latest")
+def get_latest_metric():
+    """
+    Return the most recent metric record.
+    """
+    return metrics_store.latest()
+
+
+@router.get("/metrics")
+def list_metrics(
+    limit: int = Query(50, ge=1, le=500),
+    cursor_ts: Optional[float] = Query(None, description="Cursor timestamp"),
+    cursor_id: Optional[int] = Query(None, description="Cursor row id"),
+    action: Optional[DecisionType] = Query(None),
+    model: Optional[str] = Query(None),
+    min_accuracy: Optional[float] = Query(None, ge=0.0, le=1.0),
+    start_ts: Optional[float] = Query(None),
+    end_ts: Optional[float] = Query(None),
+):
+    """
+    Cursor-paginated access to metric records.
+    """
+
+    cursor = None
+    if cursor_ts is not None and cursor_id is not None:
+        cursor = (cursor_ts, cursor_id)
+
+    records, next_cursor = metrics_store.list(
+        limit=limit,
+        cursor=cursor,
+        action=action,
+        model=model,
+        min_accuracy=min_accuracy,
+        start_ts=start_ts,
+        end_ts=end_ts,
+    )
+
+    return {
+        "items": records,
+        "next_cursor": (
+            {
+                "timestamp": next_cursor[0],
+                "id": next_cursor[1],
+            }
+            if next_cursor is not None
+            else None
+        ),
+    }
+
+
+# ---------------------------------------------------------------------
+# Aggregated metrics (background-computed)
+# ---------------------------------------------------------------------
+
+@router.get("/metrics/summary/{window}")
+def get_metrics_summary(window: str):
+    """
+    Return pre-aggregated metrics summary for a time window.
+    Example windows: 5m, 1h, 24h
+    """
+    summary = summary_store.get(window)
+
+    if summary is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No summary available for window '{window}'",
+        )
+
+    return summary
+
+
+# ---------------------------------------------------------------------
+# Model lifecycle (next roadmap step)
+# ---------------------------------------------------------------------
+
+@router.post("/models/{model_version}/promote")
+def promote_model(model_version: str):
+    raise HTTPException(
+        status_code=501,
+        detail="Model promotion not implemented yet",
+    )
+
+
+@router.post("/models/{model_version}/rollback")
+def rollback_model(model_version: str):
+    raise HTTPException(
+        status_code=501,
+        detail="Model rollback not implemented yet",
+    )

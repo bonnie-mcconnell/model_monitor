@@ -1,0 +1,5 @@
+retrain:
+  min_f1_gain: 0.02
+  cooldown_batches: 5
+  min_samples: 1000
+  min_stable_batches: 5

@@ -1,0 +1,4 @@
+model:
+  name: "baseline_classifier"
+  version: "1.0.0"
+  framework: "sklearn"
