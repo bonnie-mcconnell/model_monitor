@@ -1,51 +1,36 @@
-# keep 
-# ensure never mutates state/only used by api/ui
 from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 import pandas as pd
 
-from model_monitor.storage.metrics_store import MetricsStore
+from model_monitor.monitoring.decision_history import DecisionHistory
 
 
 class DecisionAnalytics:
     """
     Read-only analytics over decision history.
 
-    Intended for dashboards, APIs, and offline inspection.
+    Used by:
+    - dashboards
+    - APIs
+    - offline analysis
     """
 
-    def __init__(self, store: MetricsStore):
-        self.store = store
+    def __init__(self, history: DecisionHistory):
+        self.history = history
 
     def decision_summary(self) -> Mapping[str, int]:
-        """
-        Count decisions by action type.
-        """
-        records = self.store.tail(limit=10_000)
+        records = self.history.read_all()
         if not records:
             return {}
 
         df = pd.DataFrame(records)
-        if "action" not in df.columns:
-            return {}
-
         return df["action"].value_counts().to_dict()
 
     def decision_tail(self, limit: int = 100) -> Sequence[Mapping[str, Any]]:
-        """
-        Return recent decision records for UI display.
-        """
-        records = self.store.tail(limit=limit)
+        records = self.history.read_all()
         if not records:
             return []
 
-        df = pd.DataFrame(records)
-
-        normalized: list[dict[str, Any]] = []
-        for _, row in df.iterrows():
-            normalized.append(
-                {str(k): v for k, v in row.to_dict().items()}
-            )
-
-        return normalized
+        df = pd.DataFrame(records).tail(limit)
+        return df.to_dict(orient="records")

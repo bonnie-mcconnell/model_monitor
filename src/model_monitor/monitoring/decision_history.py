@@ -1,10 +1,11 @@
-# keep but treat as regulatorly/audit grade decision log
+from __future__ import annotations
+
 import json
 import time
 from pathlib import Path
 from typing import List, TypedDict
 
-from model_monitor.monitoring.types import DecisionType
+from model_monitor.core.decisions import DecisionType
 
 
 class DecisionRecord(TypedDict):
@@ -20,9 +21,12 @@ class DecisionRecord(TypedDict):
 
 class DecisionHistory:
     """
-    Persistent store for operational decisions (retrain / rollback / reject).
+    Persistent audit log for operational decisions.
 
-    Stored as JSONL for auditability and dashboard use.
+    - Append-only
+    - JSONL format
+    - Human readable
+    - Dashboard & compliance friendly
     """
 
     def __init__(self, path: Path | str = "data/decisions/decision_history.jsonl"):
@@ -59,11 +63,9 @@ class DecisionHistory:
             return []
 
         records: List[DecisionRecord] = []
-
         with self.path.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:
                     records.append(json.loads(line))
-
         return records

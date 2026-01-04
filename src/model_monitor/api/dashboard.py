@@ -164,3 +164,20 @@ def rollback_model(model_version: str):
         status_code=501,
         detail="Model rollback not implemented yet",
     )
+
+
+from model_monitor.monitoring.decision_history import DecisionHistory
+from model_monitor.monitoring.decision_analytics import DecisionAnalytics
+
+decision_history = DecisionHistory()
+decision_analytics = DecisionAnalytics(decision_history)
+
+
+@router.get("/decisions/summary")
+def get_decision_summary():
+    return decision_analytics.decision_summary()
+
+
+@router.get("/decisions/tail")
+def get_decision_tail(limit: int = Query(50, ge=1, le=500)):
+    return decision_analytics.decision_tail(limit=limit)

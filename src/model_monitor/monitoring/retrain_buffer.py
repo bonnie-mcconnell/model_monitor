@@ -1,44 +1,65 @@
+from __future__ import annotations
+
 from collections import deque
-from typing import Deque, Sequence
+from typing import Deque, Dict
 
 import pandas as pd
 
 
 class RetrainBuffer:
     """
-    Accumulates labeled samples until retraining conditions are met.
+    Buffers aggregated monitoring signals to determine when retraining
+    should be triggered.
+
+    NOTE:
+    This buffer does not store raw features or labels.
+    It accumulates evidence of sustained degradation and hands control
+    to the retraining pipeline when sufficient signal is present.
     """
 
     def __init__(self, min_samples: int):
         self.min_samples = min_samples
-        self._rows: Deque[pd.DataFrame] = deque()
+        self._rows: Deque[Dict] = deque()
 
-    def add_batch(
+    def add_summary(
         self,
-        X,
-        y,
         *,
-        feature_names: Sequence[str],
+        accuracy: float,
+        f1: float,
+        drift_score: float,
+        trust_score: float,
+        timestamp: float,
     ) -> None:
-        df = pd.DataFrame(X, columns=list(feature_names))
-        df["label"] = y
-        self._rows.append(df)
+        self._rows.append(
+            {
+                "accuracy": accuracy,
+                "f1": f1,
+                "drift_score": drift_score,
+                "trust_score": trust_score,
+                "timestamp": timestamp,
+            }
+        )
 
     def size(self) -> int:
-        return sum(len(df) for df in self._rows)
+        return len(self._rows)
 
     def ready(self) -> bool:
+        """
+        Returns True if sufficient evidence has accumulated
+        to justify a retraining attempt.
+        """
         return self.size() >= self.min_samples
 
     def consume(self) -> pd.DataFrame:
         """
-        Consume and clear buffered data.
+        Consume and clear buffered evidence.
 
-        Returns empty DataFrame if buffer is empty.
+        Returns:
+            pd.DataFrame: aggregated degradation evidence
         """
         if not self._rows:
             return pd.DataFrame()
 
-        data = pd.concat(self._rows, ignore_index=True)
+        df = pd.DataFrame(list(self._rows))
         self._rows.clear()
-        return data
+        return df

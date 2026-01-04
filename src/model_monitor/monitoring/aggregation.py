@@ -7,6 +7,7 @@ from typing import Sequence
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.monitoring.trust_score import compute_trust_score
 from model_monitor.monitoring.alerting import check_alerts
+from model_monitor.monitoring.retrain_buffer import RetrainBuffer
 
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
@@ -21,6 +22,13 @@ AGGREGATION_WINDOWS: dict[str, int] = {
     "1h": 60 * 60,
     "24h": 24 * 60 * 60,
 }
+
+
+# ---------------------------------------------------------------------
+# Process-wide retrain evidence buffer
+# ---------------------------------------------------------------------
+
+_retrain_buffer = RetrainBuffer(min_samples=5)
 
 
 # ---------------------------------------------------------------------
@@ -39,8 +47,9 @@ def aggregate_once(
     Responsibilities:
     - aggregate batch-level metrics into rolling windows
     - compute trust scores
-    - persist summaries
+    - persist aggregated summaries
     - emit alerts (side-effect only)
+    - accumulate retrain evidence
 
     This function does NOT:
     - make operational decisions
@@ -61,6 +70,16 @@ def aggregate_once(
 
         summary = _aggregate_records(records)
 
+        # ---- Accumulate retrain evidence (monitoring-only) ----
+        _retrain_buffer.add_summary(
+            accuracy=summary["avg_accuracy"],
+            f1=summary["avg_f1"],
+            drift_score=summary["avg_drift_score"],
+            trust_score=summary["trust_score"],
+            timestamp=summary["computed_at"],
+        )
+
+        # ---- Persist rolling summary ----
         summary_store.upsert(
             window=window,
             n_batches=summary["n_batches"],
