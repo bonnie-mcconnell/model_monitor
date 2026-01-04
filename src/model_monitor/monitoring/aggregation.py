@@ -16,7 +16,7 @@ from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 
 
 # ---------------------------------------------------------------------
-# Aggregation windows
+# Aggregation windows (seconds)
 # ---------------------------------------------------------------------
 
 AGGREGATION_WINDOWS: dict[str, int] = {
@@ -27,7 +27,7 @@ AGGREGATION_WINDOWS: dict[str, int] = {
 
 
 # ---------------------------------------------------------------------
-# Global retrain state (intentionally process-wide)
+# Global retrain state (process-wide by design)
 # ---------------------------------------------------------------------
 
 _retrain_buffer = RetrainBuffer(min_samples=5_000)
@@ -39,14 +39,18 @@ _retrain_pipeline = RetrainPipeline()
 # ---------------------------------------------------------------------
 
 def aggregate_once(
+    *,
     metrics_store: MetricsStore,
     summary_store: MetricsSummaryStore,
-    *,
     now: float | None = None,
 ) -> None:
     """
     Run a single aggregation pass.
-    Safe for tests, cron jobs, and async loops.
+
+    Safe for:
+    - tests
+    - cron jobs
+    - async background loops
     """
     if now is None:
         now = time.time()
@@ -61,17 +65,23 @@ def aggregate_once(
             continue
 
         summary = _aggregate_records(records)
-        summary["window"] = window
-        summary_store.upsert(summary)
 
-        # --- Monitoring actions ---
+        summary_store.upsert(
+            window=window,
+            n_batches=summary["n_batches"],
+            avg_accuracy=summary["avg_accuracy"],
+            avg_f1=summary["avg_f1"],
+            avg_confidence=summary["avg_confidence"],
+            avg_drift_score=summary["avg_drift_score"],
+            avg_latency_ms=summary["avg_latency_ms"],
+        )
+
+        # ---- Monitoring actions (derived, not persisted) ----
         check_alerts(window, summary)
         _maybe_trigger_retrain(summary)
 
 
-async def start_aggregation_loop(
-    poll_interval: int = 60,
-) -> None:
+async def start_aggregation_loop(poll_interval: int = 60) -> None:
     """
     Background async aggregation loop.
     """
@@ -91,6 +101,13 @@ async def start_aggregation_loop(
 # ---------------------------------------------------------------------
 
 def _aggregate_records(records: Sequence[MetricRecord]) -> dict:
+    """
+    Aggregate batch-level metrics.
+
+    Semantics:
+    - One record == one inference batch
+    - All averages are unweighted batch means
+    """
     n = len(records)
 
     avg_accuracy = sum(r["accuracy"] for r in records) / n
@@ -108,12 +125,14 @@ def _aggregate_records(records: Sequence[MetricRecord]) -> dict:
     )
 
     return {
-        "n_records": n,
-        "accuracy": avg_accuracy,
-        "f1": avg_f1,
+        # persisted
+        "n_batches": n,
+        "avg_accuracy": avg_accuracy,
+        "avg_f1": avg_f1,
         "avg_confidence": avg_confidence,
-        "drift_score": avg_drift,
-        "decision_latency_ms": avg_latency,
+        "avg_drift_score": avg_drift,
+        "avg_latency_ms": avg_latency,
+        # derived / monitoring-only
         "trust_score": trust_score,
         "trust_components": trust_components,
         "computed_at": time.time(),
@@ -126,7 +145,7 @@ def _maybe_trigger_retrain(summary: dict) -> None:
     """
     trust = summary["trust_score"]
 
-    # Simple, explainable trigger (can evolve later)
+    # Simple, explainable baseline trigger
     if trust > 0.65:
         return
 

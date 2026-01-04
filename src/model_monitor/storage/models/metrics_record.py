@@ -25,23 +25,3 @@ class MetricsRecordORM(Base):
 
 
 Index("idx_metrics_action_ts", MetricsRecordORM.action, MetricsRecordORM.timestamp)
-
-
-class MetricsSummaryORM(Base):
-    __tablename__ = "metrics_summary"
-
-    id = Column(Integer, primary_key=True)
-    window = Column(String, nullable=False)  # e.g. "5m", "1h", "24h"
-
-    n_batches = Column(Integer, nullable=False)
-
-    avg_accuracy = Column(Float)
-    avg_f1 = Column(Float)
-    avg_confidence = Column(Float)
-    avg_drift_score = Column(Float)
-    avg_latency_ms = Column(Float)
-
-    last_updated_ts = Column(Float, nullable=False)
-
-
-Index("ix_metrics_summary_window", MetricsSummaryORM.window)

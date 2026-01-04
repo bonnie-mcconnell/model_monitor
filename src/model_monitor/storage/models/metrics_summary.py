@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, Integer, Float, String, Index
+from typing import Optional
+from sqlalchemy import Float, Integer, String, Index
+from sqlalchemy.orm import Mapped, mapped_column
 
 from model_monitor.storage.db import Base
 
@@ -8,18 +10,19 @@ from model_monitor.storage.db import Base
 class MetricsSummaryORM(Base):
     __tablename__ = "metrics_summary"
 
-    id = Column(Integer, primary_key=True)
-    window = Column(String, nullable=False, unique=True)  # e.g. "5m", "1h", "24h"
+    id: Mapped[int] = mapped_column(primary_key=True)
 
-    n_batches = Column(Integer, nullable=False)
+    window: Mapped[str] = mapped_column(String, nullable=False, unique=True)
 
-    avg_accuracy = Column(Float)
-    avg_f1 = Column(Float)
-    avg_confidence = Column(Float)
-    avg_drift_score = Column(Float)
-    avg_latency_ms = Column(Float)
+    n_batches: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    last_updated_ts = Column(Float, nullable=False)
+    avg_accuracy: Mapped[Optional[float]] = mapped_column(Float)
+    avg_f1: Mapped[Optional[float]] = mapped_column(Float)
+    avg_confidence: Mapped[Optional[float]] = mapped_column(Float)
+    avg_drift_score: Mapped[Optional[float]] = mapped_column(Float)
+    avg_latency_ms: Mapped[Optional[float]] = mapped_column(Float)
+
+    last_updated_ts: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 Index("ix_metrics_summary_window", MetricsSummaryORM.window)

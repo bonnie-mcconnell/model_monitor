@@ -4,13 +4,15 @@ import time
 from sqlalchemy.orm import Session
 
 from model_monitor.storage.db import SessionLocal
-from model_monitor.storage.metrics_summary import MetricsSummaryORM
+from model_monitor.storage.models.metrics_summary import MetricsSummaryORM
 
 
 class MetricsSummaryStore:
     """
     Persistence layer for aggregated metric summaries.
-    One row per rolling window (e.g. 5m, 1h, 24h).
+
+    One row per rolling window (e.g. "5m", "1h", "24h").
+    Overwritten on each aggregation pass.
     """
 
     def __init__(self):
@@ -18,14 +20,14 @@ class MetricsSummaryStore:
 
     def upsert(
         self,
-        window: str,
         *,
+        window: str,
         n_batches: int,
-        avg_accuracy: float | None,
-        avg_f1: float | None,
-        avg_confidence: float | None,
-        avg_drift_score: float | None,
-        avg_latency_ms: float | None,
+        avg_accuracy: float,
+        avg_f1: float,
+        avg_confidence: float,
+        avg_drift_score: float,
+        avg_latency_ms: float,
     ) -> None:
         session: Session = self._session_factory()
         try:
@@ -45,7 +47,7 @@ class MetricsSummaryStore:
             row.avg_confidence = avg_confidence
             row.avg_drift_score = avg_drift_score
             row.avg_latency_ms = avg_latency_ms
-            row.last_updated_ts = float(time.time())  # type: ignore[assignment]
+            row.last_updated_ts = time.time()
 
             session.commit()
         except Exception:
