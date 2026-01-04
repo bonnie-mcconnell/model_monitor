@@ -1,27 +1,32 @@
-from sqlalchemy import Column, Float, Integer, String, Index
+from __future__ import annotations
+
+from typing import Optional
+from sqlalchemy import Float, Integer, String, Index
+from sqlalchemy.orm import Mapped, mapped_column
+
 from model_monitor.storage.db import Base
 
 
 class MetricsRecordORM(Base):
     __tablename__ = "metrics"
 
-    id = Column(Integer, primary_key=True)
-    timestamp = Column(Float, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    timestamp: Mapped[float] = mapped_column(Float, index=True)
 
-    batch_id = Column(String, index=True)
-    n_samples = Column(Integer)
+    batch_id: Mapped[str] = mapped_column(String, index=True)
+    n_samples: Mapped[int] = mapped_column(Integer)
 
-    accuracy = Column(Float)
-    f1 = Column(Float)
-    avg_confidence = Column(Float)
-    drift_score = Column(Float)
-    decision_latency_ms = Column(Float)
+    accuracy: Mapped[float] = mapped_column(Float)
+    f1: Mapped[float] = mapped_column(Float)
+    avg_confidence: Mapped[float] = mapped_column(Float)
+    drift_score: Mapped[float] = mapped_column(Float)
+    decision_latency_ms: Mapped[float] = mapped_column(Float)
 
-    action = Column(String, index=True)
-    reason = Column(String)
+    action: Mapped[str] = mapped_column(String, index=True)
+    reason: Mapped[str] = mapped_column(String)
 
-    previous_model = Column(String, nullable=True)
-    new_model = Column(String, nullable=True)
+    previous_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    new_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 Index("idx_metrics_action_ts", MetricsRecordORM.action, MetricsRecordORM.timestamp)
