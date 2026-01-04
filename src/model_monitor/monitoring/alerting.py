@@ -1,29 +1,35 @@
 from __future__ import annotations
 
 import logging
+from typing import Mapping
+
+from .thresholds import CRITICAL_TRUST_SCORE, MIN_TRUST_SCORE
 
 logger = logging.getLogger("model_monitor.alerts")
 
-TRUST_THRESHOLDS = {
-    "5m": 0.65,
-    "1h": 0.70,
-    "24h": 0.75,
-}
 
-
-def check_alerts(window: str, summary: dict) -> None:
-    trust = summary["trust_score"]
-    threshold = TRUST_THRESHOLDS.get(window)
-
-    if threshold is None:
+def check_alerts(window: str, summary: Mapping[str, float]) -> None:
+    trust = summary.get("trust_score")
+    if trust is None:
         return
 
-    if trust < threshold:
-        logger.warning(
-            "Trust score below threshold",
+    if trust < CRITICAL_TRUST_SCORE:
+        logger.error(
+            "Critical trust degradation detected",
             extra={
                 "window": window,
                 "trust_score": trust,
-                "threshold": threshold,
+                "severity": "critical",
+            },
+        )
+        return
+
+    if trust < MIN_TRUST_SCORE:
+        logger.warning(
+            "Trust score below operational floor",
+            extra={
+                "window": window,
+                "trust_score": trust,
+                "severity": "warning",
             },
         )
