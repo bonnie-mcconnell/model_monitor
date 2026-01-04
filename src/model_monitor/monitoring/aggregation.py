@@ -7,9 +7,6 @@ from typing import Sequence
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.monitoring.trust_score import compute_trust_score
 from model_monitor.monitoring.alerting import check_alerts
-from model_monitor.monitoring.retrain_buffer import RetrainBuffer
-
-from model_monitor.training.retrain_pipeline import RetrainPipeline
 
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
@@ -27,14 +24,6 @@ AGGREGATION_WINDOWS: dict[str, int] = {
 
 
 # ---------------------------------------------------------------------
-# Global retrain state (process-wide by design)
-# ---------------------------------------------------------------------
-
-_retrain_buffer = RetrainBuffer(min_samples=5_000)
-_retrain_pipeline = RetrainPipeline()
-
-
-# ---------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------
 
@@ -47,10 +36,16 @@ def aggregate_once(
     """
     Run a single aggregation pass.
 
-    Safe for:
-    - tests
-    - cron jobs
-    - async background loops
+    Responsibilities:
+    - aggregate batch-level metrics into rolling windows
+    - compute trust scores
+    - persist summaries
+    - emit alerts (side-effect only)
+
+    This function does NOT:
+    - make operational decisions
+    - trigger retraining
+    - mutate model state
     """
     if now is None:
         now = time.time()
@@ -76,9 +71,8 @@ def aggregate_once(
             avg_latency_ms=summary["avg_latency_ms"],
         )
 
-        # ---- Monitoring actions (derived, not persisted) ----
+        # ---- Side effects only ----
         check_alerts(window, summary)
-        _maybe_trigger_retrain(summary)
 
 
 async def start_aggregation_loop(poll_interval: int = 60) -> None:
@@ -132,29 +126,8 @@ def _aggregate_records(records: Sequence[MetricRecord]) -> dict:
         "avg_confidence": avg_confidence,
         "avg_drift_score": avg_drift,
         "avg_latency_ms": avg_latency,
-        # derived / monitoring-only
+        # derived (monitoring only)
         "trust_score": trust_score,
         "trust_components": trust_components,
         "computed_at": time.time(),
     }
-
-
-def _maybe_trigger_retrain(summary: dict) -> None:
-    """
-    Decide whether to retrain based on aggregated signals.
-    """
-    trust = summary["trust_score"]
-
-    # Simple, explainable baseline trigger
-    if trust > 0.65:
-        return
-
-    if not _retrain_buffer.ready():
-        return
-
-    retrain_df = _retrain_buffer.consume()
-
-    _retrain_pipeline.run(
-        retrain_df,
-        min_f1_improvement=0.01,
-    )
