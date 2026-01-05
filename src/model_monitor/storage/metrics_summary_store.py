@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import time
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from model_monitor.storage.db import SessionLocal
@@ -9,14 +11,20 @@ from model_monitor.storage.models.metrics_summary import MetricsSummaryORM
 
 class MetricsSummaryStore:
     """
-    Persistence layer for aggregated metric summaries.
+    Persistence layer for rolling aggregated metric summaries.
 
-    One row per rolling window (e.g. "5m", "1h", "24h").
-    Overwritten on each aggregation pass.
+    Design:
+    - One row per aggregation window (e.g. "5m", "1h", "24h")
+    - Overwritten on each aggregation pass
+    - Used for dashboards & real-time monitoring
     """
 
     def __init__(self):
         self._session_factory = SessionLocal
+
+    # ------------------------------------------------------------------
+    # WRITE PATH (used by aggregation.py)
+    # ------------------------------------------------------------------
 
     def upsert(
         self,
@@ -53,5 +61,23 @@ class MetricsSummaryStore:
         except Exception:
             session.rollback()
             raise
+        finally:
+            session.close()
+
+    # ------------------------------------------------------------------
+    # READ PATH (used by dashboard.py)
+    # ------------------------------------------------------------------
+
+    def get(self, window: str) -> Optional[MetricsSummaryORM]:
+        """
+        Fetch the current rolling summary for a given window.
+        """
+        session: Session = self._session_factory()
+        try:
+            return (
+                session.query(MetricsSummaryORM)
+                .filter(MetricsSummaryORM.window == window)
+                .one_or_none()
+            )
         finally:
             session.close()

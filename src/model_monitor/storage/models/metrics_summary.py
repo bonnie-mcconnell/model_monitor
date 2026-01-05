@@ -22,7 +22,7 @@ class MetricsSummaryORM(Base):
     avg_drift_score: Mapped[Optional[float]] = mapped_column(Float)
     avg_latency_ms: Mapped[Optional[float]] = mapped_column(Float)
 
-    last_updated_ts: Mapped[float] = mapped_column(Float, nullable=False)
+    updated_ts: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 Index("ix_metrics_summary_window", MetricsSummaryORM.window)

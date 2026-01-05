@@ -4,12 +4,14 @@ import json
 import time
 from pathlib import Path
 from typing import List, TypedDict
+from datetime import datetime, timezone
 
 from model_monitor.core.decisions import DecisionType
 
 
 class DecisionRecord(TypedDict):
     timestamp: float
+    ts_iso: str
     batch_index: int
     action: DecisionType
     reason: str
@@ -46,6 +48,7 @@ class DecisionHistory:
     ) -> None:
         record: DecisionRecord = {
             "timestamp": time.time(),
+            "ts_iso": datetime.now(timezone.utc).isoformat(),
             "batch_index": batch_index,
             "action": action,
             "reason": reason,

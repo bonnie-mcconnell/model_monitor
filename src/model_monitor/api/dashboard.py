@@ -8,6 +8,8 @@ from fastapi import APIRouter, Query, HTTPException
 from model_monitor.monitoring.types import MetricRecord, DecisionType
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
+from model_monitor.monitoring.decision_history import DecisionHistory
+from model_monitor.monitoring.decision_analytics import DecisionAnalytics
 
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -19,6 +21,9 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 metrics_store = MetricsStore()
 summary_store = MetricsSummaryStore()
+
+decision_history = DecisionHistory()
+decision_analytics = DecisionAnalytics(decision_history)
 
 
 # ---------------------------------------------------------------------
@@ -37,10 +42,6 @@ def write_metric(
     action: DecisionType = "none",
     reason: str = "",
 ):
-    """
-    Write a single metric record.
-    """
-
     record: MetricRecord = {
         "timestamp": datetime.utcnow().timestamp(),
         "batch_id": batch_id,
@@ -57,7 +58,6 @@ def write_metric(
     }
 
     metrics_store.write(record)
-
     return {"status": "ok"}
 
 
@@ -69,35 +69,25 @@ def write_metric(
 def get_metrics_tail(
     limit: int = Query(100, ge=1, le=1000),
 ):
-    """
-    Return the most recent metric records.
-    """
     return metrics_store.tail(limit=limit)
 
 
 @router.get("/metrics/latest")
 def get_latest_metric():
-    """
-    Return the most recent metric record.
-    """
     return metrics_store.latest()
 
 
 @router.get("/metrics")
 def list_metrics(
     limit: int = Query(50, ge=1, le=500),
-    cursor_ts: Optional[float] = Query(None, description="Cursor timestamp"),
-    cursor_id: Optional[int] = Query(None, description="Cursor row id"),
+    cursor_ts: Optional[float] = Query(None),
+    cursor_id: Optional[int] = Query(None),
     action: Optional[DecisionType] = Query(None),
     model: Optional[str] = Query(None),
     min_accuracy: Optional[float] = Query(None, ge=0.0, le=1.0),
     start_ts: Optional[float] = Query(None),
     end_ts: Optional[float] = Query(None),
 ):
-    """
-    Cursor-paginated access to metric records.
-    """
-
     cursor = None
     if cursor_ts is not None and cursor_id is not None:
         cursor = (cursor_ts, cursor_id)
@@ -115,63 +105,31 @@ def list_metrics(
     return {
         "items": records,
         "next_cursor": (
-            {
-                "timestamp": next_cursor[0],
-                "id": next_cursor[1],
-            }
-            if next_cursor is not None
+            {"timestamp": next_cursor[0], "id": next_cursor[1]}
+            if next_cursor
             else None
         ),
     }
 
 
 # ---------------------------------------------------------------------
-# Aggregated metrics (background-computed)
+# Aggregated metrics
 # ---------------------------------------------------------------------
 
 @router.get("/metrics/summary/{window}")
 def get_metrics_summary(window: str):
-    """
-    Return pre-aggregated metrics summary for a time window.
-    Example windows: 5m, 1h, 24h
-    """
     summary = summary_store.get(window)
-
     if summary is None:
         raise HTTPException(
             status_code=404,
             detail=f"No summary available for window '{window}'",
         )
-
     return summary
 
 
 # ---------------------------------------------------------------------
-# Model lifecycle (next roadmap step)
+# Decisions
 # ---------------------------------------------------------------------
-
-@router.post("/models/{model_version}/promote")
-def promote_model(model_version: str):
-    raise HTTPException(
-        status_code=501,
-        detail="Model promotion not implemented yet",
-    )
-
-
-@router.post("/models/{model_version}/rollback")
-def rollback_model(model_version: str):
-    raise HTTPException(
-        status_code=501,
-        detail="Model rollback not implemented yet",
-    )
-
-
-from model_monitor.monitoring.decision_history import DecisionHistory
-from model_monitor.monitoring.decision_analytics import DecisionAnalytics
-
-decision_history = DecisionHistory()
-decision_analytics = DecisionAnalytics(decision_history)
-
 
 @router.get("/decisions/summary")
 def get_decision_summary():
@@ -181,3 +139,17 @@ def get_decision_summary():
 @router.get("/decisions/tail")
 def get_decision_tail(limit: int = Query(50, ge=1, le=500)):
     return decision_analytics.decision_tail(limit=limit)
+
+
+# ---------------------------------------------------------------------
+# Model lifecycle (roadmap)
+# ---------------------------------------------------------------------
+
+@router.post("/models/{model_version}/promote")
+def promote_model(model_version: str):
+    raise HTTPException(status_code=501, detail="Model promotion not implemented")
+
+
+@router.post("/models/{model_version}/rollback")
+def rollback_model(model_version: str):
+    raise HTTPException(status_code=501, detail="Model rollback not implemented")

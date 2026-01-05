@@ -9,7 +9,7 @@ from sqlalchemy.sql import and_, or_
 
 from model_monitor.monitoring.types import MetricRecord, DecisionType
 from model_monitor.storage.db import Base
-from model_monitor.storage.models import MetricsRecordORM
+from model_monitor.storage.models.metrics_models import MetricsRecordORM
 
 
 Cursor = tuple[float, int]  # (timestamp, row id)
@@ -34,7 +34,7 @@ class MetricsStore:
             f"sqlite:///{self.db_path}",
             future=True,
         )
-        Base.metadata.create_all(self.engine)
+        Base.metadata.create_all(self.engine) # TODO: move to db.py/api/startup.py 
 
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
