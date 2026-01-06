@@ -17,11 +17,9 @@ from model_monitor.monitoring.drift import DriftMonitor
 from model_monitor.monitoring.decision_history import DecisionHistory
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.storage.metrics_store import MetricsStore
-from model_monitor.storage.model_store import get_active_version
 
 
 MODEL_PATH = Path("models/current.pkl")
-SCHEMA_PATH = Path("data/reference/feature_schema.json")
 ACTIVE_FILE = Path("models/active.json")
 
 
@@ -61,18 +59,10 @@ class Predictor:
         self.f1_baseline = float(f1_baseline)
         self.batch_index = 0
 
-        # -------------------------------
-        # Feature schema
-        # -------------------------------
-        if SCHEMA_PATH.exists():
-            with SCHEMA_PATH.open() as f:
-                self.feature_names: list[str] = json.load(f)
-        else:
-            self.feature_names = []
+        # Feature schema is inferred lazily from data / model
+        self.feature_names: list[str] = []
 
-        # -------------------------------
         # Monitoring & decisioning
-        # -------------------------------
         self.metrics_store = MetricsStore()
         self.decision_history = DecisionHistory()
         self.decision_engine = DecisionEngine(config=self.cfg)
@@ -92,11 +82,18 @@ class Predictor:
         self._loaded_version = self._load_active_version()
 
     def reload_if_changed(self) -> bool:
+        """
+        Reload model only if the active version changed.
+
+        Returns True only when an actual reload occurred due to version change.
+        """
         current_version = self._load_active_version()
 
+        # First-time load: load silently, but do NOT count as a change
         if self.model is None:
-            self.reload()
-            return True
+            if self.model_path.exists():
+                self.reload()
+            return False
 
         if current_version != self._loaded_version:
             self.reload()
@@ -129,7 +126,7 @@ class Predictor:
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame")
 
-        # Infer schema if missing
+        # Infer feature schema dynamically
         if not self.feature_names:
             self.feature_names = list(X.columns)
 
@@ -174,9 +171,10 @@ class Predictor:
             "decision_latency_ms": (time.time() - start_ts) * 1000.0,
             "action": decision.action,
             "reason": decision.reason,
-            "previous_model": get_active_version(),
+            "previous_model": self._loaded_version,
             "new_model": None,
         }
+
         self.metrics_store.write(record)
         self.decision_history.record(decision)
 
