@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Optional, Tuple, Any
 
@@ -14,6 +15,7 @@ from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision
 from model_monitor.monitoring.drift import DriftMonitor
 from model_monitor.monitoring.decision_history import DecisionHistory
+from model_monitor.monitoring.types import MetricRecord
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.model_store import get_active_version
 
@@ -35,9 +37,9 @@ class Predictor:
     - Produce decisions
 
     Does NOT:
-    - Persist raw prediction logs
     - Execute retraining
     - Promote or rollback models
+    - Aggregate metrics
     """
 
     def __init__(
@@ -71,7 +73,7 @@ class Predictor:
         # -------------------------------
         # Monitoring & decisioning
         # -------------------------------
-        self.metrics = MetricsStore()
+        self.metrics_store = MetricsStore()
         self.decision_history = DecisionHistory()
         self.decision_engine = DecisionEngine(config=self.cfg)
 
@@ -140,6 +142,7 @@ class Predictor:
             raise ValueError("Input batch missing required features")
 
         self.batch_index += 1
+        start_ts = time.time()
 
         model = self.active_model
         probs = model.predict_proba(X)
@@ -164,32 +167,37 @@ class Predictor:
             drift_score=drift_score,
         )
 
+        decision_latency_ms = (time.time() - start_ts) * 1000.0
         model_version = get_active_version()
 
-        # Persist batch metrics
-        self.metrics.write(
-            batch_id=batch_id,
-            n_samples=len(X),
-            accuracy=accuracy,
-            f1=f1,
-            avg_confidence=float(np.mean(confs)),
-            drift_score=drift_score,
-            decision_latency_ms=0.0,  # measured upstream
-            action=decision.action,
-            reason=decision.reason,
-            previous_model=None,
-            new_model=None,
-        )
+        # -------------------------------
+        # Persist metrics (single source of truth)
+        # -------------------------------
+        record: MetricRecord = {
+            "timestamp": start_ts,
+            "batch_id": batch_id,
+            "n_samples": len(X),
+            "accuracy": accuracy,
+            "f1": f1,
+            "avg_confidence": float(np.mean(confs)),
+            "drift_score": drift_score,
+            "decision_latency_ms": decision_latency_ms,
+            "action": decision.action,
+            "reason": decision.reason,
+            "previous_model": model_version,
+            "new_model": None,
+        }
+        self.metrics_store.write(record)
 
-        # Record decision history
-        self.decision_history.write(
-            batch_index=self.batch_index,
-            action=decision.action,
-            reason=decision.reason,
-            f1=f1,
-            f1_baseline=self.f1_baseline,
-            drift_score=drift_score,
-            model_version=model_version,
-        )
+        # -------------------------------
+        # Record decision (ephemeral)
+        # -------------------------------
+        self.decision_history.record(decision)
 
         return preds, confs, decision
+    
+    # -----------------------------
+    # Public Accessors
+    # -------------------------------
+    def current_model_version(self) -> Optional[str]:
+        return self._load_active_version()
