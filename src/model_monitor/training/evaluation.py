@@ -3,10 +3,14 @@ from sklearn.metrics import f1_score
 
 
 def validate_model(model, df: pd.DataFrame) -> float:
+    """
+    Evaluate a trained model on a labeled dataset.
+
+    Returns:
+        F1 score as float.
+    """
     X = df.drop(columns=["label"])
     y = df["label"]
 
     preds = model.predict(X)
-    score = f1_score(y, preds, zero_division=0)
-
-    return float(score)
+    return float(f1_score(y, preds, zero_division=0))

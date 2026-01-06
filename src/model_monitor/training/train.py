@@ -36,6 +36,9 @@ def make_dataset(
 
 
 def train_model(df: pd.DataFrame) -> RandomForestClassifier:
+    if "label" not in df.columns:
+        raise ValueError("Training DataFrame must contain 'label' column")
+
     X = df.drop(columns=["label"])
     y = df["label"]
 
@@ -52,9 +55,6 @@ def train_model(df: pd.DataFrame) -> RandomForestClassifier:
 
 
 def compute_reference_stats(df: pd.DataFrame) -> dict[str, dict]:
-    """
-    Feature-level statistics used for drift detection.
-    """
     stats: dict[str, dict] = {}
 
     for col in df.columns:
@@ -79,8 +79,7 @@ def main() -> None:
     df, feature_names = make_dataset()
 
     SCHEMA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(SCHEMA_PATH, "w") as f:
-        json.dump(feature_names, f, indent=2)
+    SCHEMA_PATH.write_text(json.dumps(feature_names, indent=2))
 
     train_df, val_df = train_test_split(
         df,
@@ -93,7 +92,6 @@ def main() -> None:
     model = train_model(train_df)
 
     from training.evaluation import validate_model
-
     f1 = validate_model(model, val_df)
     print(f"Validation F1: {f1:.4f}")
 
@@ -102,11 +100,8 @@ def main() -> None:
     print(f"Saved model → {MODEL_PATH}")
 
     REF_PATH.parent.mkdir(parents=True, exist_ok=True)
-    ref_stats = compute_reference_stats(train_df)
-    with open(REF_PATH, "w") as f:
-        json.dump(ref_stats, f, indent=2)
+    REF_PATH.write_text(json.dumps(compute_reference_stats(train_df), indent=2))
 
-    print(f"Saved reference stats → {REF_PATH}")
     print("Bootstrap training complete.")
 
 
