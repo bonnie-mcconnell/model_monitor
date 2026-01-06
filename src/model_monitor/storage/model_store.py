@@ -71,25 +71,27 @@ class ModelStore:
         if not self._candidate_model.exists():
             raise FileNotFoundError("No candidate model to promote")
 
-        version = self._new_version()
+        new_version = self._new_version()
+        previous_version = self.get_active_version()
 
-        # Archive current model (if any)
-        if self._current_model.exists():
-            archived = self._archive_dir / f"model_{version}.pkl"
+        # Archive current model under its *actual* version
+        if self._current_model.exists() and previous_version is not None:
+            archived = self._archive_dir / f"model_{previous_version}.pkl"
             self._current_model.replace(archived)
 
         # Promote candidate → current
         self._candidate_model.replace(self._current_model)
 
         self._write_active(
-            version=version,
+            version=new_version,
             metadata={
+                "previous_version": previous_version,
                 "metrics": metrics or {},
                 "promoted_at_utc": self._now(),
             },
         )
 
-        return version
+        return new_version
 
     # --------------------------------------------------
     # Rollback
@@ -102,20 +104,21 @@ class ModelStore:
         if not archived.exists():
             raise FileNotFoundError(f"No archived model for version '{version}'")
 
-        previous_version = self.get_active_version() or "unknown"
+        current_version = self.get_active_version()
 
-        # Archive current before rollback
-        if self._current_model.exists():
+        # Archive current model under its real version
+        if self._current_model.exists() and current_version is not None:
             self._current_model.replace(
-                self._archive_dir / f"model_{previous_version}.pkl"
+                self._archive_dir / f"model_{current_version}.pkl"
             )
 
+        # Restore archived → current
         archived.replace(self._current_model)
 
         self._write_active(
             version=version,
             metadata={
-                "rollback_from": previous_version,
+                "rollback_from": current_version,
                 "rollback_at_utc": self._now(),
             },
         )
@@ -179,7 +182,7 @@ class ModelStore:
 
 
 # --------------------------------------------------
-# Thin convenience layer
+# Thin convenience layer (module-level API)
 # --------------------------------------------------
 _default_store = ModelStore()
 
@@ -195,8 +198,10 @@ def save_candidate(model: Any) -> None:
 def promote_candidate(metrics: Dict[str, Any] | None = None) -> str:
     return _default_store.promote_candidate(metrics)
 
+
 def rollback(*, version: str) -> str:
     return _default_store.rollback(version)
+
 
 def get_active_version() -> Optional[str]:
     return _default_store.get_active_version()
