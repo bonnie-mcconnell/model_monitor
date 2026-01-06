@@ -13,18 +13,12 @@ class MetricsSummaryStore:
     """
     Persistence layer for rolling aggregated metric summaries.
 
-    Design:
-    - One row per aggregation window (e.g. "5m", "1h", "24h")
-    - Overwritten on each aggregation pass
-    - Used for dashboards & real-time monitoring
+    One row per aggregation window (e.g. "5m", "1h", "24h").
+    Overwritten on each aggregation pass.
     """
 
     def __init__(self):
         self._session_factory = SessionLocal
-
-    # ------------------------------------------------------------------
-    # WRITE PATH (used by aggregation.py)
-    # ------------------------------------------------------------------
 
     def upsert(
         self,
@@ -46,7 +40,11 @@ class MetricsSummaryStore:
             )
 
             if row is None:
-                row = MetricsSummaryORM(window=window)
+                row = MetricsSummaryORM(
+                    window=window,
+                    n_batches=n_batches,
+                    updated_ts=time.time(),
+                )
                 session.add(row)
 
             row.n_batches = n_batches
@@ -55,7 +53,7 @@ class MetricsSummaryStore:
             row.avg_confidence = avg_confidence
             row.avg_drift_score = avg_drift_score
             row.avg_latency_ms = avg_latency_ms
-            row.last_updated_ts = time.time()
+            row.updated_ts = time.time()
 
             session.commit()
         except Exception:
@@ -64,14 +62,7 @@ class MetricsSummaryStore:
         finally:
             session.close()
 
-    # ------------------------------------------------------------------
-    # READ PATH (used by dashboard.py)
-    # ------------------------------------------------------------------
-
     def get(self, window: str) -> Optional[MetricsSummaryORM]:
-        """
-        Fetch the current rolling summary for a given window.
-        """
         session: Session = self._session_factory()
         try:
             return (
