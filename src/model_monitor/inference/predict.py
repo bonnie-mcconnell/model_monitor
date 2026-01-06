@@ -78,6 +78,11 @@ class Predictor:
     # Reload logic
     # --------------------------------------------------
     def reload(self) -> None:
+        if not self.model_path.exists():
+            self.model = None
+            self._loaded_version = None
+            return
+
         self.model = joblib.load(self.model_path)
         self._loaded_version = self._load_active_version()
 
