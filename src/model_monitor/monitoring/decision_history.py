@@ -35,6 +35,9 @@ class DecisionHistory:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
+    def __iter__(self):
+        yield from self.read_all()
+
     def write(
         self,
         *,

@@ -10,6 +10,7 @@ from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.monitoring.decision_history import DecisionHistory
 from model_monitor.monitoring.decision_analytics import DecisionAnalytics
+from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
 
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -153,3 +154,42 @@ def promote_model(model_version: str):
 @router.post("/models/{model_version}/rollback")
 def rollback_model(model_version: str):
     raise HTTPException(status_code=501, detail="Model rollback not implemented")
+
+# TODO: addition, check
+@router.get("/metrics/summary/{window}/history")
+def get_metrics_summary_history(
+    window: str,
+    limit: int = Query(100, ge=1, le=1000),
+):
+    from model_monitor.storage.metrics_summary_history_store import (
+        MetricsSummaryHistoryStore,
+    )
+
+    store = MetricsSummaryHistoryStore()
+
+    # simple version: query directly for now
+    with store._session_factory() as session:
+        rows = (
+            session.query(MetricsSummaryHistoryORM)
+            .filter(MetricsSummaryHistoryORM.window == window)
+            .order_by(MetricsSummaryHistoryORM.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+
+    return {
+        "window": window,
+        "items": [
+            {
+                "window": r.window,
+                "timestamp": r.timestamp,
+                "n_batches": r.n_batches,
+                "avg_accuracy": r.avg_accuracy,
+                "avg_f1": r.avg_f1,
+                "avg_confidence": r.avg_confidence,
+                "avg_drift_score": r.avg_drift_score,
+                "avg_latency_ms": r.avg_latency_ms,
+            }
+            for r in reversed(rows)
+        ],
+    }

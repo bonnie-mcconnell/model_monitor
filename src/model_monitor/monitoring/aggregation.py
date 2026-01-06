@@ -11,6 +11,9 @@ from model_monitor.monitoring.retrain_buffer import RetrainBuffer
 
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
+from model_monitor.storage.metrics_summary_history_store import (
+    MetricsSummaryHistoryStore,
+)
 
 
 # ---------------------------------------------------------------------
@@ -89,6 +92,20 @@ def aggregate_once(
             avg_drift_score=summary["avg_drift_score"],
             avg_latency_ms=summary["avg_latency_ms"],
         )
+        
+        history_store = MetricsSummaryHistoryStore()
+
+        history_store.write(
+            window=window,
+            timestamp=summary["computed_at"],
+            n_batches=summary["n_batches"],
+            avg_accuracy=summary["avg_accuracy"],
+            avg_f1=summary["avg_f1"],
+            avg_confidence=summary["avg_confidence"],
+            avg_drift_score=summary["avg_drift_score"],
+            avg_latency_ms=summary["avg_latency_ms"],
+        )
+
 
         # ---- Side effects only ----
         check_alerts(window, summary)
