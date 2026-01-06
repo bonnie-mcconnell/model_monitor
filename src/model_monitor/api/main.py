@@ -12,8 +12,10 @@ from model_monitor.monitoring.aggregation import start_aggregation_loop
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(start_aggregation_loop())
-    yield
-    task.cancel()
+    try:
+        yield
+    finally:
+        task.cancel()
 
 
 app = FastAPI(

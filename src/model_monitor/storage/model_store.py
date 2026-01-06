@@ -102,7 +102,7 @@ class ModelStore:
         if not archived.exists():
             raise FileNotFoundError(f"No archived model for version '{version}'")
 
-        previous_version = self.get_active_version()
+        previous_version = self.get_active_version() or "unknown"
 
         # Archive current before rollback
         if self._current_model.exists():

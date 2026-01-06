@@ -116,41 +116,6 @@ This is a *systems* project, not just a model.
 
 ## 📂 Repository Structure
 
-```
-model_monitor/
-│
-├── api/
-│   ├── main.py            # FastAPI app
-│   ├── health.py          # Liveness / readiness probes
-│   └── metrics.py         # Metrics endpoints
-│
-├── inference/
-│   └── predict.py         # Batch prediction wrapper
-│
-├── monitoring/
-│   ├── drift.py           # PSI drift detection
-│   ├── metrics.py         # Rolling metric tracker
-│   ├── metrics_history.py # Persistent metrics store
-│   ├── retrain_buffer.py  # Accumulates retraining data
-│   ├── retrain.py         # Retrain decision logic
-│   └── dashboard.py       # Dashboard aggregation layer
-│
-├── training/
-│   ├── train.py           # Model training + validation
-│   ├── promotion.py       # Promotion decision logic
-│   └── retrain_pipeline.py
-│
-├── scripts/
-│   └── run_simulation.py  # End-to-end streaming simulation
-│
-├── data/
-│   ├── reference/         # Feature schema + reference stats
-│   └── metrics/           # metrics_history.jsonl
-│
-└── models/
-    ├── current.pkl
-    └── candidate.pkl
-```
 
 ---
 

@@ -1,10 +1,8 @@
 from fastapi import APIRouter
-from pathlib import Path
-import joblib
+
+from model_monitor.storage import model_store
 
 router = APIRouter(tags=["health"])
-
-MODEL_PATH = Path("models/current.pkl")
 
 
 @router.get("/health")
@@ -14,11 +12,10 @@ def health():
 
 @router.get("/ready")
 def readiness():
-    if not MODEL_PATH.exists():
-        return {"ready": False, "reason": "model_not_found"}
-
     try:
-        joblib.load(MODEL_PATH)
+        model_store.load_current()
+    except FileNotFoundError:
+        return {"ready": False, "reason": "model_not_found"}
     except Exception as e:
         return {
             "ready": False,
@@ -27,4 +24,3 @@ def readiness():
         }
 
     return {"ready": True}
-

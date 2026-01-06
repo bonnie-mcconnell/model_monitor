@@ -11,7 +11,7 @@ from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.monitoring.decision_history import DecisionHistory
 from model_monitor.monitoring.decision_analytics import DecisionAnalytics
 from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
-
+from model_monitor.core.decisions import Decision
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -57,6 +57,14 @@ def write_metric(
         "previous_model": None,
         "new_model": None,
     }
+
+    decision = Decision(
+        action=action,
+        reason=reason,
+        metadata={},
+    )
+
+    decision_history.record(decision)
 
     metrics_store.write(record)
     return {"status": "ok"}
