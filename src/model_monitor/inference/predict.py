@@ -1,6 +1,6 @@
-import csv
+from __future__ import annotations
+
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple, Any
 
@@ -12,14 +12,14 @@ from sklearn.metrics import accuracy_score, f1_score
 from model_monitor.config.settings import AppConfig
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision
-from model_monitor.monitoring.metrics_history import MetricsHistory
 from model_monitor.monitoring.drift import DriftMonitor
 from model_monitor.monitoring.decision_history import DecisionHistory
+from model_monitor.storage.metrics_store import MetricsStore
+from model_monitor.storage.model_store import get_active_version
 
 
 MODEL_PATH = Path("models/current.pkl")
 SCHEMA_PATH = Path("data/reference/feature_schema.json")
-LOG_PATH = Path("metrics/predictions.log")
 ACTIVE_FILE = Path("models/active.json")
 
 
@@ -35,7 +35,7 @@ class Predictor:
     - Produce decisions
 
     Does NOT:
-    - Measure latency
+    - Persist raw prediction logs
     - Execute retraining
     - Promote or rollback models
     """
@@ -59,19 +59,19 @@ class Predictor:
         self.f1_baseline = float(f1_baseline)
         self.batch_index = 0
 
-        # --------------------------------------------------
+        # -------------------------------
         # Feature schema
-        # --------------------------------------------------
+        # -------------------------------
         if SCHEMA_PATH.exists():
             with SCHEMA_PATH.open() as f:
                 self.feature_names: list[str] = json.load(f)
         else:
             self.feature_names = []
 
-        # --------------------------------------------------
+        # -------------------------------
         # Monitoring & decisioning
-        # --------------------------------------------------
-        self.metrics = MetricsHistory()
+        # -------------------------------
+        self.metrics = MetricsStore()
         self.decision_history = DecisionHistory()
         self.decision_engine = DecisionEngine(config=self.cfg)
 
@@ -149,7 +149,6 @@ class Predictor:
         accuracy = 0.0
         f1 = 0.0
         drift_score = 0.0
-        avg_conf = float(np.mean(confs))
 
         if y_true is not None:
             accuracy = float(accuracy_score(y_true, preds))
@@ -165,8 +164,24 @@ class Predictor:
             drift_score=drift_score,
         )
 
-        model_version = self._load_active_version()
+        model_version = get_active_version()
 
+        # Persist batch metrics
+        self.metrics.write(
+            batch_id=batch_id,
+            n_samples=len(X),
+            accuracy=accuracy,
+            f1=f1,
+            avg_confidence=float(np.mean(confs)),
+            drift_score=drift_score,
+            decision_latency_ms=0.0,  # measured upstream
+            action=decision.action,
+            reason=decision.reason,
+            previous_model=None,
+            new_model=None,
+        )
+
+        # Record decision history
         self.decision_history.write(
             batch_index=self.batch_index,
             action=decision.action,
@@ -177,49 +192,4 @@ class Predictor:
             model_version=model_version,
         )
 
-        self._log_predictions(preds, confs, decision, batch_id)
-
         return preds, confs, decision
-
-    # --------------------------------------------------
-    # Prediction logging
-    # --------------------------------------------------
-    def _log_predictions(
-        self,
-        preds: np.ndarray,
-        confs: np.ndarray,
-        decision: Decision,
-        batch_id: str,
-    ) -> None:
-        ts = datetime.now(timezone.utc).isoformat()
-        model_version = self._load_active_version()
-
-        LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        write_header = not LOG_PATH.exists()
-
-        with LOG_PATH.open("a", newline="") as f:
-            writer = csv.writer(f)
-
-            if write_header:
-                writer.writerow(
-                    [
-                        "ts",
-                        "batch_id",
-                        "prediction",
-                        "confidence",
-                        "decision",
-                        "model_version",
-                    ]
-                )
-
-            for p, c in zip(preds, confs):
-                writer.writerow(
-                    [
-                        ts,
-                        batch_id,
-                        int(p),
-                        round(float(c), 6),
-                        decision.action,
-                        model_version,
-                    ]
-                )
