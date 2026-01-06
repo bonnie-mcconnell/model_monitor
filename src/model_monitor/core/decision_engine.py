@@ -13,7 +13,7 @@ class DecisionEngine:
     POLICY ONLY:
     - no I/O
     - no persistence
-    - no side effects except internal cooldown tracking
+    - no side effects except cooldown tracking
     """
 
     def __init__(self, config: AppConfig):
@@ -30,14 +30,10 @@ class DecisionEngine:
         drift_score: float,
         recent_actions: Sequence[DecisionType] | None = None,
     ) -> Decision:
-        """
-        Decide what operational action (if any) should be taken.
-        """
-
         f1_drop = f1_baseline - f1
 
         # --------------------------------------------------
-        # Hard drift guardrail → reject traffic
+        # 1. Hard drift guardrail → reject
         # --------------------------------------------------
         if drift_score >= self.cfg.drift.psi_threshold:
             self._last_action = "reject"
@@ -51,7 +47,7 @@ class DecisionEngine:
             )
 
         # --------------------------------------------------
-        # Catastrophic regression → rollback
+        # 2. Catastrophic regression → rollback
         # --------------------------------------------------
         if f1_drop >= self.cfg.rollback.max_f1_drop:
             self._last_action = "rollback"
@@ -62,34 +58,11 @@ class DecisionEngine:
                     "f1_drop": f1_drop,
                     "baseline_f1": f1_baseline,
                     "current_f1": f1,
-                    "target_version": "previous",
                 },
             )
 
         # --------------------------------------------------
-        # Suspected bad rollout (regression without drift)
-        # --------------------------------------------------
-        severe_regression = self.cfg.retrain.min_f1_gain * 2
-
-        if (
-            f1_drop >= severe_regression
-            and drift_score < self.cfg.drift.psi_threshold * 0.5
-        ):
-            self._last_action = "rollback"
-            return Decision(
-                action="rollback",
-                reason="Severe regression without corresponding drift",
-                metadata={
-                    "f1_drop": f1_drop,
-                    "baseline_f1": f1_baseline,
-                    "current_f1": f1,
-                    "drift_score": drift_score,
-                    "target_version": "previous",
-                },
-            )
-
-        # --------------------------------------------------
-        # Sustained degradation → retrain
+        # 3. Sustained degradation → retrain
         # --------------------------------------------------
         if f1_drop >= self.cfg.retrain.min_f1_gain:
             if self._last_retrain_batch is not None:
@@ -118,14 +91,13 @@ class DecisionEngine:
             )
 
         # --------------------------------------------------
-        # Promotion guardrail
+        # 4. Promotion guardrail
         # --------------------------------------------------
         if recent_actions is not None:
             n = self.cfg.retrain.min_stable_batches
             if (
                 len(recent_actions) >= n
                 and all(a == "none" for a in recent_actions[-n:])
-                and self._last_action == "none"
             ):
                 self._last_action = "promote"
                 return Decision(
@@ -135,7 +107,7 @@ class DecisionEngine:
                 )
 
         # --------------------------------------------------
-        # Stable system
+        # 5. Stable system
         # --------------------------------------------------
         self._last_action = "none"
         return Decision(

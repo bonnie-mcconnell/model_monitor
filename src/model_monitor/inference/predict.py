@@ -84,24 +84,6 @@ class Predictor:
                 config=self.cfg.drift,
             )
 
-        if self.model_path.exists():
-            self.reload()
-
-    # --------------------------------------------------
-    # Version helpers
-    # --------------------------------------------------
-    def _load_active_version(self) -> Optional[str]:
-        if not self.active_file.exists():
-            return None
-        with self.active_file.open() as f:
-            return json.load(f).get("version")
-
-    @property
-    def active_model(self) -> Any:
-        if self.model is None:
-            raise RuntimeError("No active model loaded")
-        return self.model
-
     # --------------------------------------------------
     # Reload logic
     # --------------------------------------------------
@@ -113,8 +95,6 @@ class Predictor:
         current_version = self._load_active_version()
 
         if self.model is None:
-            if not self.model_path.exists():
-                raise RuntimeError("Model file missing")
             self.reload()
             return True
 
@@ -123,6 +103,18 @@ class Predictor:
             return True
 
         return False
+
+    def _load_active_version(self) -> Optional[str]:
+        if not self.active_file.exists():
+            return None
+        with self.active_file.open() as f:
+            return json.load(f).get("version")
+
+    @property
+    def active_model(self) -> Any:
+        if self.model is None:
+            raise RuntimeError("No active model loaded")
+        return self.model
 
     # --------------------------------------------------
     # Prediction
@@ -137,9 +129,15 @@ class Predictor:
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame")
 
-        X = X.reindex(columns=self.feature_names)
-        if X.isnull().any().any():
-            raise ValueError("Input batch missing required features")
+        # Infer schema if missing
+        if not self.feature_names:
+            self.feature_names = list(X.columns)
+
+        missing = set(self.feature_names) - set(X.columns)
+        if missing:
+            raise ValueError(f"Missing required features: {sorted(missing)}")
+
+        X = X[self.feature_names]
 
         self.batch_index += 1
         start_ts = time.time()
@@ -149,9 +147,7 @@ class Predictor:
         preds = probs.argmax(axis=1)
         confs = probs.max(axis=1)
 
-        accuracy = 0.0
-        f1 = 0.0
-        drift_score = 0.0
+        accuracy = f1 = drift_score = 0.0
 
         if y_true is not None:
             accuracy = float(accuracy_score(y_true, preds))
@@ -167,12 +163,6 @@ class Predictor:
             drift_score=drift_score,
         )
 
-        decision_latency_ms = (time.time() - start_ts) * 1000.0
-        model_version = get_active_version()
-
-        # -------------------------------
-        # Persist metrics (single source of truth)
-        # -------------------------------
         record: MetricRecord = {
             "timestamp": start_ts,
             "batch_id": batch_id,
@@ -181,23 +171,16 @@ class Predictor:
             "f1": f1,
             "avg_confidence": float(np.mean(confs)),
             "drift_score": drift_score,
-            "decision_latency_ms": decision_latency_ms,
+            "decision_latency_ms": (time.time() - start_ts) * 1000.0,
             "action": decision.action,
             "reason": decision.reason,
-            "previous_model": model_version,
+            "previous_model": get_active_version(),
             "new_model": None,
         }
         self.metrics_store.write(record)
-
-        # -------------------------------
-        # Record decision (ephemeral)
-        # -------------------------------
         self.decision_history.record(decision)
 
         return preds, confs, decision
-    
-    # -----------------------------
-    # Public Accessors
-    # -------------------------------
+
     def current_model_version(self) -> Optional[str]:
         return self._load_active_version()

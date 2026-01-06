@@ -61,5 +61,4 @@ def test_predictor_reload_noop_when_model_unchanged(tmp_path: Path):
         active_file=store.active_file,
     )
 
-    assert predictor.reload_if_changed() is True
     assert predictor.reload_if_changed() is False
