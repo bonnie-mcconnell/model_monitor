@@ -7,6 +7,8 @@ from typing import Mapping
 from .thresholds import CRITICAL_TRUST_SCORE, MIN_TRUST_SCORE
 
 logger = logging.getLogger("model_monitor.alerts")
+logger.propagate = True
+
 
 # Basic in-process alert suppression
 _last_alert_ts: dict[str, float] = {}
