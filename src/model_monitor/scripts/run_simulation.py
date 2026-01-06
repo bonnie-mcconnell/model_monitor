@@ -9,7 +9,7 @@ import pandas as pd
 
 from model_monitor.config.settings import AppConfig, load_config
 from model_monitor.inference.predict import Predictor
-from model_monitor.monitoring.retrain_buffer import RetrainBuffer
+from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 from model_monitor.monitoring.logging_config import setup_logging
 from model_monitor.storage import model_store
 from model_monitor.storage.model_store import get_active_version
@@ -37,7 +37,7 @@ def simulate_stream(
 
     predictor = Predictor(config=config)
 
-    retrain_buffer = RetrainBuffer(
+    retrain_buffer = RetrainEvidenceBuffer(
         min_samples=config.retrain.min_samples
     )
     retrain_pipeline = RetrainPipeline()

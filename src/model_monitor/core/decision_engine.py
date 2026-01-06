@@ -118,7 +118,7 @@ class DecisionEngine:
             )
 
         # --------------------------------------------------
-        # Promotion guardrail (N stable batches, no recent ops)
+        # Promotion guardrail
         # --------------------------------------------------
         if recent_actions is not None:
             n = self.cfg.retrain.min_stable_batches
@@ -131,9 +131,7 @@ class DecisionEngine:
                 return Decision(
                     action="promote",
                     reason="Promotion stability conditions satisfied",
-                    metadata={
-                        "stable_batches": n,
-                    },
+                    metadata={"stable_batches": n},
                 )
 
         # --------------------------------------------------

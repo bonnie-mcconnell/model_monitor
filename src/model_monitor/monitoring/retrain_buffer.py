@@ -6,7 +6,7 @@ from typing import Deque, Dict
 import pandas as pd
 
 
-class RetrainBuffer:
+class RetrainEvidenceBuffer:
     """
     Buffers aggregated monitoring signals to determine when retraining
     should be triggered.

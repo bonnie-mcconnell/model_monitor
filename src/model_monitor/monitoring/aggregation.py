@@ -7,7 +7,7 @@ from typing import Sequence
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.monitoring.trust_score import compute_trust_score
 from model_monitor.monitoring.alerting import check_alerts
-from model_monitor.monitoring.retrain_buffer import RetrainBuffer
+from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
@@ -31,7 +31,7 @@ AGGREGATION_WINDOWS: dict[str, int] = {
 # Process-wide retrain evidence buffer
 # ---------------------------------------------------------------------
 
-_retrain_buffer = RetrainBuffer(min_samples=5)
+_retrain_buffer = RetrainEvidenceBuffer(min_samples=5)
 
 
 # ---------------------------------------------------------------------

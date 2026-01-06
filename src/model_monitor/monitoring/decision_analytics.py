@@ -1,23 +1,50 @@
+from __future__ import annotations
+
 from typing import Any, Sequence
-from model_monitor.monitoring.decision_history import DecisionHistory, DecisionRecord
+import pandas as pd
+
+from model_monitor.monitoring.decision_history import DecisionHistory
 
 
 class DecisionAnalytics:
     """
-    Read-only analytics over decision history. 
-    Used by dashboard, API, offline access.
+    Read-only analytics over decision history.
+
+    Used by:
+    - dashboards
+    - APIs
+    - offline analysis
     """
 
     def __init__(self, history: DecisionHistory):
         self.history = history
 
     def decision_summary(self) -> dict[str, int]:
-        actions = [str(r["action"]) for r in self.history]
-        counts: dict[str, int] = {}
-        for action in actions:
-            counts[action] = counts.get(action, 0) + 1
-        return counts
-
-    def decision_tail(self, limit: int = 100) -> Sequence[DecisionRecord]:
         records = list(self.history)
-        return records[-limit:]
+        if not records:
+            return {}
+
+        df = pd.DataFrame(records)
+
+        if "action" not in df.columns:
+            return {}
+
+        return (
+            df["action"]
+            .astype(str)
+            .value_counts()
+            .to_dict()
+        )
+
+    def decision_tail(self, limit: int = 100) -> Sequence[dict[str, Any]]:
+        records = list(self.history)
+        if not records:
+            return []
+
+        df = pd.DataFrame(records).tail(limit)
+
+        # Explicitly return JSON-safe dicts
+        return [
+            {str(k): v for k, v in row.items()}
+            for row in df.to_dict(orient="records")
+        ]

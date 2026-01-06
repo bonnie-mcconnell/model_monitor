@@ -59,6 +59,7 @@ class RetrainPipeline:
         # --- Persist candidate ---
         model_store.save_candidate(candidate_model)
 
+
         # --- Promote if approved ---
         if promotion.promoted:
             model_store.promote_candidate(
