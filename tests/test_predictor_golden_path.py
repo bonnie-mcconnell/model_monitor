@@ -7,9 +7,9 @@ from model_monitor.config.settings import load_config
 
 class DummyModel:
     def predict_proba(self, X):
-        probs = np.zeros((len(X), 2))
-        probs[:, 1] = 1.0
+        probs = np.full((len(X), 2), 0.5)
         return probs
+
 
 
 def test_predictor_healthy_batch():

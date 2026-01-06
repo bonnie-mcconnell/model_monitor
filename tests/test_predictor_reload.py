@@ -27,6 +27,9 @@ def test_predictor_reloads_after_promotion(tmp_path: Path):
         active_file=store.active_file,
     )
 
+    predictor.reload()
+    assert predictor.reload_if_changed() is False
+
     model_v1 = DummyModel(value=1)
     store.save_candidate(model_v1)
     store.promote_candidate(metrics={"f1": 0.6})

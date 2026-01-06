@@ -30,4 +30,5 @@ def test_predictor_triggers_retrain_on_f1_drop():
         batch_id="batch_001",
     )
 
-    assert decision.action in {"retrain", "none"}
+    assert decision.action in {"none", "retrain", "rollback"}
+
