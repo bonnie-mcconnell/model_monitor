@@ -180,7 +180,12 @@ class Predictor:
                 drift_score=drift_score,
             )
         else:
-            decision = Decision.none()
+            decision = Decision(
+            action="none",
+            reason="no_ground_truth_or_baseline",
+            metadata={},
+        )
+
 
         record: MetricRecord = {
             "timestamp": start_ts,

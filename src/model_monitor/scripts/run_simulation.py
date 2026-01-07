@@ -11,8 +11,7 @@ from model_monitor.config.settings import AppConfig, load_config
 from model_monitor.inference.predict import Predictor
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 from model_monitor.monitoring.logging_config import setup_logging
-from model_monitor.storage import model_store
-from model_monitor.storage.model_store import get_active_version
+from model_monitor.storage.model_store import ModelStore, get_active_version
 from model_monitor.training.retrain_pipeline import RetrainPipeline
 
 setup_logging()
@@ -33,15 +32,28 @@ def simulate_stream(
 ) -> None:
     assert config.model is not None, "Simulation requires model configuration"
 
+    # ---- Explicit lifecycle dependencies
+    model_store = ModelStore()
+
     predictor = Predictor(config=config)
-    retrain_buffer = RetrainEvidenceBuffer(min_samples=config.retrain.min_samples)
-    retrain_pipeline = RetrainPipeline()
+
+    retrain_buffer = RetrainEvidenceBuffer(
+        min_samples=config.retrain.min_samples
+    )
+
+    retrain_pipeline = RetrainPipeline(
+        model_store=model_store
+    )
 
     pending_labels: list[tuple[int, pd.DataFrame]] = []
 
     logger.info(
         "simulation_started",
-        extra={"batches": n_batches, "batch_size": batch_size, "stress": stress},
+        extra={
+            "batches": n_batches,
+            "batch_size": batch_size,
+            "stress": stress,
+        },
     )
 
     for step in range(n_batches):
@@ -49,7 +61,11 @@ def simulate_stream(
 
         shift = 2.5 if stress and step > n_batches // 2 else 0.0
 
-        X = np.random.normal(loc=shift, scale=1.0, size=(batch_size, len(FEATURE_NAMES)))
+        X = np.random.normal(
+            loc=shift,
+            scale=1.0,
+            size=(batch_size, len(FEATURE_NAMES)),
+        )
         X_df = pd.DataFrame(X, columns=FEATURE_NAMES)
 
         y = (X_df[FEATURE_NAMES[0]] > 0).astype(int)
@@ -60,27 +76,14 @@ def simulate_stream(
         start_time = time.perf_counter()
 
         preds, confs, decision = predictor.predict_batch(
-            X_df, y_true=y, batch_id=batch_id
+            X_df,
+            y_true=y,
+            batch_id=batch_id,
         )
 
         decision_latency_ms = (time.perf_counter() - start_time) * 1000.0
 
-        # Write metrics for dashboard / monitoring
-        predictor.metrics.write(
-            batch_id=batch_id,
-            n_samples=len(X_df),
-            accuracy=float((preds == y).mean()),
-            f1=decision.metadata.get("f1", 0.0),
-            avg_confidence=float(np.mean(confs)),
-            drift_score=decision.metadata.get("drift_score", 0.0),
-            action=decision.action,
-            reason=decision.reason,
-            decision_latency_ms=decision_latency_ms,
-            previous_model=None,
-            new_model=None,
-        )
-
-        # Add evidence to retrain buffer per batch
+        # ---- Retrain evidence
         retrain_buffer.add_summary(
             accuracy=float((preds == y).mean()),
             f1=decision.metadata.get("f1", 0.0),
@@ -99,26 +102,40 @@ def simulate_stream(
             },
         )
 
+        # ---- Rollback handling
         if decision.action == "rollback":
             target_version = decision.metadata.get("target_version")
             if target_version is None:
-                logger.error("rollback_missing_target_version", extra={"batch_id": batch_id})
+                logger.error(
+                    "rollback_missing_target_version",
+                    extra={"batch_id": batch_id},
+                )
             else:
                 rolled_to = model_store.rollback(version=target_version)
                 predictor.reload()
                 logger.warning(
                     "model_rollback",
-                    extra={"batch_id": batch_id, "rolled_to": rolled_to, "reason": decision.reason},
+                    extra={
+                        "batch_id": batch_id,
+                        "rolled_to": rolled_to,
+                        "reason": decision.reason,
+                    },
                 )
 
-        # Label delay logic (optional, could integrate later if retraining requires labels)
+        # ---- Label delay (future extension)
         pending_labels.append((step + label_delay, labeled_df))
-        pending_labels = [item for item in pending_labels if step < item[0]]
+        pending_labels = [
+            item for item in pending_labels if step < item[0]
+        ]
 
-        # Trigger retraining if buffer ready
+        # ---- Retraining trigger
         if decision.action == "retrain" and retrain_buffer.ready():
             retrain_df = retrain_buffer.consume()
-            result = retrain_pipeline.run(retrain_df, min_f1_improvement=config.retrain.min_f1_gain)
+            result = retrain_pipeline.run(
+                retrain_df,
+                min_f1_improvement=config.retrain.min_f1_gain,
+            )
+
             if result.promotion.promoted:
                 predictor.reload()
                 logger.info("model_promoted")
