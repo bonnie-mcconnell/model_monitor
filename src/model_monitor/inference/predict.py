@@ -47,7 +47,7 @@ class Predictor:
         model_path: Path = MODEL_PATH,
         active_file: Path = ACTIVE_FILE,
         reference_features: Optional[np.ndarray] = None,
-        f1_baseline: float = 0.85,
+        f1_baseline: Optional[float] = 0.85,
     ) -> None:
         self.cfg = config
         self.model_path = model_path
@@ -56,10 +56,11 @@ class Predictor:
         self.model: Optional[Any] = None
         self._loaded_version: Optional[str] = None
 
-        self.f1_baseline = float(f1_baseline)
+        # Baseline is optional; rollback logic should not fire if undefined
+        self.f1_baseline = float(f1_baseline) if f1_baseline is not None else None
         self.batch_index = 0
 
-        # Feature schema is inferred lazily from data / model
+        # Feature schema inferred lazily
         self.feature_names: list[str] = []
 
         # Monitoring & decisioning
@@ -78,6 +79,9 @@ class Predictor:
     # Reload logic
     # --------------------------------------------------
     def reload(self) -> None:
+        """
+        Force reload of the currently active model.
+        """
         if not self.model_path.exists():
             self.model = None
             self._loaded_version = None
@@ -88,13 +92,13 @@ class Predictor:
 
     def reload_if_changed(self) -> bool:
         """
-        Reload model only if the active version changed.
+        Reload model if (and only if) the active version changed.
 
-        Returns True only when an actual reload occurred due to version change.
+        Returns True only when a real reload occurred.
         """
         current_version = self._load_active_version()
 
-        # First-time load: load silently, but do NOT count as a change
+        # First-time initialization
         if self.model is None:
             if self.model_path.exists():
                 self.reload()
@@ -110,7 +114,8 @@ class Predictor:
         if not self.active_file.exists():
             return None
         with self.active_file.open() as f:
-            return json.load(f).get("version")
+            payload = json.load(f)
+        return payload.get("version")
 
     @property
     def active_model(self) -> Any:
@@ -131,7 +136,7 @@ class Predictor:
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame")
 
-        # Infer feature schema dynamically
+        # Infer feature schema lazily
         if not self.feature_names:
             self.feature_names = list(X.columns)
 
@@ -149,7 +154,9 @@ class Predictor:
         preds = probs.argmax(axis=1)
         confs = probs.max(axis=1)
 
-        accuracy = f1 = drift_score = 0.0
+        accuracy = 0.0
+        f1 = 0.0
+        drift_score = 0.0
 
         if y_true is not None:
             accuracy = float(accuracy_score(y_true, preds))
@@ -158,12 +165,22 @@ class Predictor:
         if self.drift_monitor is not None:
             drift_score = float(self.drift_monitor.update(X.values))
 
-        decision = self.decision_engine.decide(
-            batch_index=self.batch_index,
-            f1=f1,
-            f1_baseline=self.f1_baseline,
-            drift_score=drift_score,
-        )
+        # ----------------------------------------------
+        # Decision logic
+        #
+        # Rollback decisions only make sense when:
+        # - ground truth exists
+        # - a baseline exists
+        # ----------------------------------------------
+        if y_true is not None and self.f1_baseline is not None:
+            decision = self.decision_engine.decide(
+                batch_index=self.batch_index,
+                f1=f1,
+                f1_baseline=self.f1_baseline,
+                drift_score=drift_score,
+            )
+        else:
+            decision = Decision.none()
 
         record: MetricRecord = {
             "timestamp": start_ts,
