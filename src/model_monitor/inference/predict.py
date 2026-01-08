@@ -98,16 +98,14 @@ class Predictor:
         """
         current_version = self._load_active_version()
 
-        # No active model file yet
         if not self.model_path.exists():
             return False
 
-        # First load
+        # First-ever load counts as a reload
         if self._loaded_version is None:
             self.reload()
-            return False
+            return True
 
-        # Version changed => reload
         if current_version != self._loaded_version:
             self.reload()
             return True
@@ -170,13 +168,15 @@ class Predictor:
             drift_score = float(self.drift_monitor.update(X.values))
 
         # ----------------------------------------------
-        # Decision logic
-        #
-        # Rollback decisions only make sense when:
-        # - ground truth exists
-        # - a baseline exists
+        # Decision logic guardrails
         # ----------------------------------------------
-        if y_true is not None and self.f1_baseline is not None:
+        decision: Decision
+
+        has_labels = y_true is not None
+        has_baseline = self.f1_baseline is not None
+        enough_samples = len(X) >= self.cfg.retrain.min_samples
+
+        if has_labels and has_baseline and enough_samples:
             decision = self.decision_engine.decide(
                 batch_index=self.batch_index,
                 f1=f1,
@@ -185,11 +185,14 @@ class Predictor:
             )
         else:
             decision = Decision(
-            action="none",
-            reason="no_ground_truth_or_baseline",
-            metadata={},
-        )
-
+                action="none",
+                reason="insufficient_signal_for_decision",
+                metadata={
+                    "has_labels": has_labels,
+                    "has_baseline": has_baseline,
+                    "n_samples": len(X),
+                },
+            )
 
         record: MetricRecord = {
             "timestamp": start_ts,
