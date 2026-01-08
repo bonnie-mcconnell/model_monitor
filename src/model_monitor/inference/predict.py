@@ -98,12 +98,16 @@ class Predictor:
         """
         current_version = self._load_active_version()
 
-        # First-time initialization
-        if self.model is None:
-            if self.model_path.exists():
-                self.reload()
+        # No active model file yet
+        if not self.model_path.exists():
             return False
 
+        # First load
+        if self._loaded_version is None:
+            self.reload()
+            return False
+
+        # Version changed => reload
         if current_version != self._loaded_version:
             self.reload()
             return True

@@ -30,6 +30,25 @@ class DecisionEngine:
         drift_score: float,
         recent_actions: Sequence[DecisionType] | None = None,
     ) -> Decision:
+        """
+        Decision policy (evaluated top → bottom):
+
+        ┌───────────────┬──────────────────────────────┬────────────┐
+        │ Condition     │ Signal                        │ Action     │
+        ├───────────────┼──────────────────────────────┼────────────┤
+        │ Severe drift  │ drift_score >= psi_threshold  │ reject     │
+        │ Catastrophic  │ f1_drop >= rollback threshold │ rollback   │
+        │ Degradation   │ f1_drop >= retrain threshold  │ retrain    │
+        │ Stable long   │ N stable batches              │ promote    │
+        │ Otherwise     │ within thresholds             │ none       │
+        └───────────────┴──────────────────────────────┴────────────┘
+
+        Notes:
+        - Rollback is reserved for extreme, sudden failures
+        - Retrain handles gradual or moderate degradation
+        - Ordering matters: first match wins
+        """
+
         f1_drop = f1_baseline - f1
 
         # --------------------------------------------------
@@ -49,11 +68,12 @@ class DecisionEngine:
         # --------------------------------------------------
         # 2. Catastrophic regression → rollback
         # --------------------------------------------------
+        # Rollback is reserved for extreme performance collapse.
         if f1_drop >= self.cfg.rollback.max_f1_drop:
             self._last_action = "rollback"
             return Decision(
                 action="rollback",
-                reason="Catastrophic performance regression",
+                reason="Catastrophic performance regression detected",
                 metadata={
                     "f1_drop": f1_drop,
                     "baseline_f1": f1_baseline,
@@ -82,7 +102,7 @@ class DecisionEngine:
             self._last_action = "retrain"
             return Decision(
                 action="retrain",
-                reason="Sustained performance degradation",
+                reason="Sustained performance degradation detected",
                 metadata={
                     "f1_drop": f1_drop,
                     "baseline_f1": f1_baseline,
