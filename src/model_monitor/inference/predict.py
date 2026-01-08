@@ -47,7 +47,7 @@ class Predictor:
         model_path: Path = MODEL_PATH,
         active_file: Path = ACTIVE_FILE,
         reference_features: Optional[np.ndarray] = None,
-        f1_baseline: Optional[float] = 0.85,
+        f1_baseline: Optional[float] = None,
     ) -> None:
         self.cfg = config
         self.model_path = model_path
@@ -55,12 +55,18 @@ class Predictor:
 
         self.model: Optional[Any] = None
         self._loaded_version: Optional[str] = None
+        self._loaded_mtime: float | None = None
+        # Tracks whether a model was already active when the predictor started.
+        # Used to distinguish "initial silent load" from "model appeared later".
+        self._model_existed_at_startup = self.model_path.exists()
 
-        # Baseline is optional; rollback logic should not fire if undefined
-        self.f1_baseline = float(f1_baseline) if f1_baseline is not None else None
+
+        # Optional baseline (rollback logic must not fire without it)
+        self.f1_baseline: Optional[float] = (
+            float(f1_baseline) if f1_baseline is not None else None
+        )
+
         self.batch_index = 0
-
-        # Feature schema inferred lazily
         self.feature_names: list[str] = []
 
         # Monitoring & decisioning
@@ -79,9 +85,6 @@ class Predictor:
     # Reload logic
     # --------------------------------------------------
     def reload(self) -> None:
-        """
-        Force reload of the currently active model.
-        """
         if not self.model_path.exists():
             self.model = None
             self._loaded_version = None
@@ -89,24 +92,41 @@ class Predictor:
 
         self.model = joblib.load(self.model_path)
         self._loaded_version = self._load_active_version()
+        self._loaded_mtime = self.model_path.stat().st_mtime
 
+
+    # NOTE:
+    # Initial model load is NOT considered a reload.
+    # Only version changes trigger reload=True.
     def reload_if_changed(self) -> bool:
         """
-        Reload model if (and only if) the active version changed.
+        Reload model if (and only if) the active model changed.
 
-        Returns True only when a real reload occurred.
+        A change is detected if:
+        - the active version changes, OR
+        - the model file is replaced on disk
         """
-        current_version = self._load_active_version()
-
         if not self.model_path.exists():
             return False
 
-        # First-ever load counts as a reload
+        current_version = self._load_active_version()
+        current_mtime = self.model_path.stat().st_mtime
+
+        # First-ever load
         if self._loaded_version is None:
             self.reload()
-            return True
 
-        if current_version != self._loaded_version:
+            # Reload only if the model appeared AFTER startup
+            return not self._model_existed_at_startup
+
+
+        version_changed = current_version != self._loaded_version
+        file_changed = (
+            self._loaded_mtime is not None
+            and current_mtime != self._loaded_mtime
+        )
+
+        if version_changed or file_changed:
             self.reload()
             return True
 
@@ -138,7 +158,6 @@ class Predictor:
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame")
 
-        # Infer feature schema lazily
         if not self.feature_names:
             self.feature_names = list(X.columns)
 
@@ -151,8 +170,7 @@ class Predictor:
         self.batch_index += 1
         start_ts = time.time()
 
-        model = self.active_model
-        probs = model.predict_proba(X)
+        probs = self.active_model.predict_proba(X)
         preds = probs.argmax(axis=1)
         confs = probs.max(axis=1)
 
@@ -168,19 +186,17 @@ class Predictor:
             drift_score = float(self.drift_monitor.update(X.values))
 
         # ----------------------------------------------
-        # Decision logic guardrails
+        # Decision logic (TYPE-SAFE)
         # ----------------------------------------------
-        decision: Decision
-
+        baseline = self.f1_baseline  # 👈 REQUIRED for Pylance narrowing
         has_labels = y_true is not None
-        has_baseline = self.f1_baseline is not None
         enough_samples = len(X) >= self.cfg.retrain.min_samples
 
-        if has_labels and has_baseline and enough_samples:
+        if has_labels and baseline is not None and enough_samples:
             decision = self.decision_engine.decide(
                 batch_index=self.batch_index,
                 f1=f1,
-                f1_baseline=self.f1_baseline,
+                f1_baseline=baseline,  # ✅ float, not Optional
                 drift_score=drift_score,
             )
         else:
@@ -189,7 +205,7 @@ class Predictor:
                 reason="insufficient_signal_for_decision",
                 metadata={
                     "has_labels": has_labels,
-                    "has_baseline": has_baseline,
+                    "has_baseline": baseline is not None,
                     "n_samples": len(X),
                 },
             )
