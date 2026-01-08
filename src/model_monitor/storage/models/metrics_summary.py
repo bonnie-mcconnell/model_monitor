@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
 from sqlalchemy import Float, Integer, String, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,11 +15,11 @@ class MetricsSummaryORM(Base):
 
     n_batches: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    avg_accuracy: Mapped[Optional[float]] = mapped_column(Float)
-    avg_f1: Mapped[Optional[float]] = mapped_column(Float)
-    avg_confidence: Mapped[Optional[float]] = mapped_column(Float)
-    avg_drift_score: Mapped[Optional[float]] = mapped_column(Float)
-    avg_latency_ms: Mapped[Optional[float]] = mapped_column(Float)
+    avg_accuracy: Mapped[float] = mapped_column(Float, nullable=False)
+    avg_f1: Mapped[float] = mapped_column(Float, nullable=False)
+    avg_confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    avg_drift_score: Mapped[float] = mapped_column(Float, nullable=False)
+    avg_latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
 
     updated_ts: Mapped[float] = mapped_column(Float, nullable=False)
 

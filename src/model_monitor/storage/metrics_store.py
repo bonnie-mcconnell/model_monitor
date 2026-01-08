@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional, cast
 
 from sqlalchemy import and_, create_engine, or_
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 from model_monitor.monitoring.types import DecisionType, MetricRecord
 from model_monitor.storage.db import Base
@@ -38,30 +38,41 @@ class MetricsStore:
         # This will move to startup / migrations later.
         Base.metadata.create_all(self.engine)
 
-        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.Session = sessionmaker(
+            bind=self.engine,
+            expire_on_commit=False,
+            class_=Session,
+        )
 
     # --------------------------------------------------
     # Write
     # --------------------------------------------------
     def write(self, record: MetricRecord) -> None:
+        """
+        Persist a single batch-level metric record.
+        """
         with self.Session() as session:
-            session.add(
-                MetricsRecordORM(
-                    timestamp=record["timestamp"],
-                    batch_id=record["batch_id"],
-                    n_samples=record["n_samples"],
-                    accuracy=record["accuracy"],
-                    f1=record["f1"],
-                    avg_confidence=record["avg_confidence"],
-                    drift_score=record["drift_score"],
-                    decision_latency_ms=record["decision_latency_ms"],
-                    action=record["action"],
-                    reason=record["reason"],
-                    previous_model=record["previous_model"],
-                    new_model=record["new_model"],
+            try:
+                session.add(
+                    MetricsRecordORM(
+                        timestamp=record["timestamp"],
+                        batch_id=record["batch_id"],
+                        n_samples=record["n_samples"],
+                        accuracy=record["accuracy"],
+                        f1=record["f1"],
+                        avg_confidence=record["avg_confidence"],
+                        drift_score=record["drift_score"],
+                        decision_latency_ms=record["decision_latency_ms"],
+                        action=cast(DecisionType, record["action"]),
+                        reason=record["reason"],
+                        previous_model=record["previous_model"],
+                        new_model=record["new_model"],
+                    )
                 )
-            )
-            session.commit()
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
 
     # --------------------------------------------------
     # Read (simple)
@@ -105,8 +116,9 @@ class MetricsStore:
         """
         Cursor-based pagination over metrics.
 
-        Returns:
-            (records, next_cursor)
+        Cursor semantics:
+        - Ordered by (timestamp ASC, id ASC)
+        - Cursor represents the *last seen* row
         """
         with self.Session() as session:
             q = session.query(MetricsRecordORM)
@@ -148,7 +160,6 @@ class MetricsStore:
                     )
                 )
 
-            # ---- Order ----
             q = q.order_by(
                 MetricsRecordORM.timestamp.asc(),
                 MetricsRecordORM.id.asc(),

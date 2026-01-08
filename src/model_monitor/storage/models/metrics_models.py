@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
+
 from sqlalchemy import Float, Integer, String, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,6 +23,7 @@ class MetricsRecordORM(Base):
     drift_score: Mapped[float] = mapped_column(Float)
     decision_latency_ms: Mapped[float] = mapped_column(Float)
 
+    # Expected values align with DecisionType
     action: Mapped[str] = mapped_column(String, index=True)
     reason: Mapped[str] = mapped_column(String)
 

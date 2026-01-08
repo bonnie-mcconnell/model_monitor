@@ -1,4 +1,3 @@
-# TODO: check if needed
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -11,10 +10,13 @@ from model_monitor.storage.models.metrics_summary_history import (
 
 class MetricsSummaryHistoryStore:
     """
-    Append-only store for historical aggregated summaries.
+    Append-only persistence layer for historical aggregated metric summaries.
+
+    One row per aggregation window per aggregation run.
+    Used for dashboards, trend analysis, and audits.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._session_factory = SessionLocal
 
     def write(
@@ -29,6 +31,11 @@ class MetricsSummaryHistoryStore:
         avg_drift_score: float,
         avg_latency_ms: float,
     ) -> None:
+        """
+        Persist a historical snapshot of aggregated metrics.
+
+        This method is intentionally append-only.
+        """
         session: Session = self._session_factory()
         try:
             session.add(
@@ -44,5 +51,8 @@ class MetricsSummaryHistoryStore:
                 )
             )
             session.commit()
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
