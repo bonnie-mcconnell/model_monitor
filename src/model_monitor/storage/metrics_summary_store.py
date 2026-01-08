@@ -15,9 +15,13 @@ class MetricsSummaryStore:
 
     One row per aggregation window (e.g. "5m", "1h", "24h").
     Overwritten on each aggregation pass.
+
+    Note:
+        Schema creation is handled centrally (db.py / startup),
+        not in this store.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._session_factory = SessionLocal
 
     def upsert(
@@ -32,6 +36,8 @@ class MetricsSummaryStore:
         avg_latency_ms: float,
     ) -> None:
         session: Session = self._session_factory()
+        now = time.time()
+
         try:
             row = (
                 session.query(MetricsSummaryORM)
@@ -43,7 +49,7 @@ class MetricsSummaryStore:
                 row = MetricsSummaryORM(
                     window=window,
                     n_batches=n_batches,
-                    updated_ts=time.time(),
+                    updated_ts=now,
                 )
                 session.add(row)
 
@@ -53,7 +59,7 @@ class MetricsSummaryStore:
             row.avg_confidence = avg_confidence
             row.avg_drift_score = avg_drift_score
             row.avg_latency_ms = avg_latency_ms
-            row.updated_ts = time.time()
+            row.updated_ts = now
 
             session.commit()
         except Exception:

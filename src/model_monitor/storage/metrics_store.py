@@ -3,10 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, cast
 
-from sqlalchemy import create_engine, and_, or_
+from sqlalchemy import and_, create_engine, or_
 from sqlalchemy.orm import sessionmaker
 
-from model_monitor.monitoring.types import MetricRecord, DecisionType
+from model_monitor.monitoring.types import DecisionType, MetricRecord
 from model_monitor.storage.db import Base
 from model_monitor.storage.models.metrics_models import MetricsRecordORM
 
@@ -33,7 +33,10 @@ class MetricsStore:
             f"sqlite:///{self.db_path}",
             future=True,
         )
-        Base.metadata.create_all(self.engine)  # TODO: move to db.py/api/startup.py 
+
+        # NOTE: schema creation is intentionally here for now.
+        # This will move to startup / migrations later.
+        Base.metadata.create_all(self.engine)
 
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
 
@@ -41,8 +44,6 @@ class MetricsStore:
     # Write
     # --------------------------------------------------
     def write(self, record: MetricRecord) -> None:
-        record_action: DecisionType = cast(DecisionType, record["action"])
-
         with self.Session() as session:
             session.add(
                 MetricsRecordORM(
@@ -54,7 +55,7 @@ class MetricsStore:
                     avg_confidence=record["avg_confidence"],
                     drift_score=record["drift_score"],
                     decision_latency_ms=record["decision_latency_ms"],
-                    action=record_action,
+                    action=record["action"],
                     reason=record["reason"],
                     previous_model=record["previous_model"],
                     new_model=record["new_model"],
@@ -72,7 +73,10 @@ class MetricsStore:
         with self.Session() as session:
             rows: list[MetricsRecordORM] = (
                 session.query(MetricsRecordORM)
-                .order_by(MetricsRecordORM.timestamp.desc(), MetricsRecordORM.id.desc())
+                .order_by(
+                    MetricsRecordORM.timestamp.desc(),
+                    MetricsRecordORM.id.desc(),
+                )
                 .limit(limit)
                 .all()
             )
@@ -137,12 +141,18 @@ class MetricsStore:
                 q = q.filter(
                     or_(
                         MetricsRecordORM.timestamp > ts,
-                        and_(MetricsRecordORM.timestamp == ts, MetricsRecordORM.id > row_id),
+                        and_(
+                            MetricsRecordORM.timestamp == ts,
+                            MetricsRecordORM.id > row_id,
+                        ),
                     )
                 )
 
             # ---- Order ----
-            q = q.order_by(MetricsRecordORM.timestamp.asc(), MetricsRecordORM.id.asc())
+            q = q.order_by(
+                MetricsRecordORM.timestamp.asc(),
+                MetricsRecordORM.id.asc(),
+            )
 
             rows: list[MetricsRecordORM] = q.limit(limit + 1).all()
 
@@ -154,9 +164,10 @@ class MetricsStore:
         next_cursor: Optional[Cursor] = None
         if has_more and rows:
             last = rows[-1]
-            ts = cast(float, last.timestamp)
-            row_id = cast(int, last.id)
-            next_cursor = (ts, row_id)
+            next_cursor = (
+                cast(float, last.timestamp),
+                cast(int, last.id),
+            )
 
         return records, next_cursor
 
