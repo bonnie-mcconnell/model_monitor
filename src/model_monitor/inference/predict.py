@@ -5,10 +5,10 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple, Any
 
-import joblib
+import joblib # type: ignore
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score # type: ignore
 
 from model_monitor.config.settings import AppConfig
 from model_monitor.core.decision_engine import DecisionEngine

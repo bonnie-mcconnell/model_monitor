@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision

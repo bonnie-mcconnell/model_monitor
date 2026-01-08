@@ -1,7 +1,7 @@
+from typing import Deque
 import numpy as np
 from collections import deque
 from model_monitor.config.settings import DriftConfig
-
 
 EPS = 1e-6
 
@@ -28,11 +28,7 @@ def compute_psi(expected: np.ndarray, actual: np.ndarray, bins: int = 10) -> flo
     exp_dist = exp_counts / (exp_counts.sum() + EPS)
     act_dist = act_counts / (act_counts.sum() + EPS)
 
-    psi = np.sum(
-        (act_dist - exp_dist)
-        * np.log((act_dist + EPS) / (exp_dist + EPS))
-    )
-
+    psi = np.sum((act_dist - exp_dist) * np.log((act_dist + EPS) / (exp_dist + EPS)))
     return float(psi)
 
 
@@ -41,18 +37,14 @@ class DriftMonitor:
     Tracks feature-level drift using PSI over a rolling window.
     """
 
-    def __init__(
-        self,
-        reference_features: np.ndarray,
-        config: DriftConfig,
-    ) -> None:
+    def __init__(self, reference_features: np.ndarray, config: DriftConfig) -> None:
         if reference_features.ndim != 2:
             raise ValueError("reference_features must be 2D")
 
         self.reference = reference_features
-        self.window = config.window
-        self.threshold = config.psi_threshold
-        self.buffer = deque(maxlen=self.window)
+        self.window: int = config.window
+        self.threshold: float = config.psi_threshold
+        self.buffer: Deque[np.ndarray] = deque(maxlen=self.window)
 
     def update(self, X: np.ndarray) -> float:
         """
@@ -61,17 +53,12 @@ class DriftMonitor:
         if X.ndim != 2:
             raise ValueError("Incoming batch must be 2D")
 
-        self.buffer.extend(X)
+        self.buffer.append(X)
 
         if len(self.buffer) < self.window:
             return 0.0
 
-        recent = np.asarray(self.buffer)
-        scores = []
-
-        for i in range(self.reference.shape[1]):
-            scores.append(
-                compute_psi(self.reference[:, i], recent[:, i])
-            )
+        recent = np.vstack(self.buffer)
+        scores = [compute_psi(self.reference[:, i], recent[:, i]) for i in range(self.reference.shape[1])]
 
         return float(np.mean(scores))

@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score # type: ignore
 
 
 def validate_model(model, df: pd.DataFrame) -> float:

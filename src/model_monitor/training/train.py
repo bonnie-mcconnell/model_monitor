@@ -2,12 +2,12 @@ import json
 from pathlib import Path
 from typing import Tuple
 
-import joblib
+import joblib # type: ignore
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_classification
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.datasets import make_classification # type: ignore
+from sklearn.ensemble import RandomForestClassifier # type: ignore
+from sklearn.model_selection import train_test_split # type: ignore
 
 MODEL_PATH = Path("models/current.pkl")
 REF_PATH = Path("data/reference/reference_stats.json")
@@ -91,7 +91,7 @@ def main() -> None:
     print("Training initial model...")
     model = train_model(train_df)
 
-    from training.evaluation import validate_model
+    from model_monitor.training.evaluation import validate_model
     f1 = validate_model(model, val_df)
     print(f"Validation F1: {f1:.4f}")
 
