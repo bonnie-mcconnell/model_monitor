@@ -62,7 +62,9 @@ class ModelStore:
         return joblib.load(self._current_model)
 
     def save_candidate(self, model: Any) -> None:
-        joblib.dump(model, self._candidate_model)
+        tmp = self._candidate_model.with_suffix(".tmp")
+        joblib.dump(model, tmp)
+        tmp.replace(self._candidate_model)
 
     # --------------------------------------------------
     # Promotion
