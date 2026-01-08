@@ -42,18 +42,14 @@ class DecisionEngine:
         │ Stable long   │ N stable batches              │ promote    │
         │ Otherwise     │ within thresholds             │ none       │
         └───────────────┴──────────────────────────────┴────────────┘
-
-        Notes:
-        - Rollback is reserved for extreme, sudden failures
-        - Retrain handles gradual or moderate degradation
-        - Ordering matters: first match wins
         """
 
         f1_drop = f1_baseline - f1
 
-        # --------------------------------------------------
+        rollback_threshold = self.cfg.rollback.max_f1_drop
+        retrain_f1_drop_threshold = self.cfg.retrain.min_f1_gain
+
         # 1. Hard drift guardrail → reject
-        # --------------------------------------------------
         if drift_score >= self.cfg.drift.psi_threshold:
             self._last_action = "reject"
             return Decision(
@@ -65,11 +61,8 @@ class DecisionEngine:
                 },
             )
 
-        # --------------------------------------------------
         # 2. Catastrophic regression → rollback
-        # --------------------------------------------------
-        # Rollback is reserved for extreme performance collapse.
-        if f1_drop >= self.cfg.rollback.max_f1_drop:
+        if f1_drop >= rollback_threshold:
             self._last_action = "rollback"
             return Decision(
                 action="rollback",
@@ -81,14 +74,11 @@ class DecisionEngine:
                 },
             )
 
-        # --------------------------------------------------
         # 3. Sustained degradation → retrain
-        # --------------------------------------------------
-        if f1_drop >= self.cfg.retrain.min_f1_gain:
+        if retrain_f1_drop_threshold <= f1_drop < rollback_threshold:
             if self._last_retrain_batch is not None:
                 since_last = batch_index - self._last_retrain_batch
                 if since_last < self.cfg.retrain.cooldown_batches:
-                    self._last_action = "none"
                     return Decision(
                         action="none",
                         reason="Retrain cooldown active",
@@ -110,15 +100,10 @@ class DecisionEngine:
                 },
             )
 
-        # --------------------------------------------------
         # 4. Promotion guardrail
-        # --------------------------------------------------
         if recent_actions is not None:
             n = self.cfg.retrain.min_stable_batches
-            if (
-                len(recent_actions) >= n
-                and all(a == "none" for a in recent_actions[-n:])
-            ):
+            if len(recent_actions) >= n and all(a == "none" for a in recent_actions[-n:]):
                 self._last_action = "promote"
                 return Decision(
                     action="promote",
@@ -126,9 +111,7 @@ class DecisionEngine:
                     metadata={"stable_batches": n},
                 )
 
-        # --------------------------------------------------
         # 5. Stable system
-        # --------------------------------------------------
         self._last_action = "none"
         return Decision(
             action="none",
