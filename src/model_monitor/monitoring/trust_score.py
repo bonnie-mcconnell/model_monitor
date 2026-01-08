@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import TypedDict
+
+from typing import TypedDict, Literal, Tuple
 
 
 class TrustScoreComponents(TypedDict):
@@ -8,6 +9,15 @@ class TrustScoreComponents(TypedDict):
     confidence: float
     drift: float
     latency: float
+
+
+TrustComponentKey = Literal[
+    "accuracy",
+    "f1",
+    "confidence",
+    "drift",
+    "latency",
+]
 
 
 def clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
@@ -50,11 +60,11 @@ def compute_trust_score(
     avg_confidence: float,
     drift_score: float,
     decision_latency_ms: float,
-) -> tuple[float, TrustScoreComponents]:
+) -> Tuple[float, TrustScoreComponents]:
     """
     Compute a bounded, explainable trust score in [0, 1].
 
-    This score is designed for:
+    Designed for:
     - alerting
     - dashboards
     - retraining policy
@@ -68,7 +78,7 @@ def compute_trust_score(
         "latency": latency_score(decision_latency_ms),
     }
 
-    weights = {
+    weights: dict[TrustComponentKey, float] = {
         "accuracy": 0.30,
         "f1": 0.25,
         "confidence": 0.15,
@@ -76,5 +86,9 @@ def compute_trust_score(
         "latency": 0.10,
     }
 
-    trust = sum(components[k] * weights[k] for k in components)
+    trust: float = sum(
+        components[key] * weights[key]
+        for key in weights
+    )
+
     return clamp(trust), components
