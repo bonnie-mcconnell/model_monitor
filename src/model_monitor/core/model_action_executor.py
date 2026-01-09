@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.storage.model_store import ModelStore
+
+
+# -----------------------------
+# Type aliases (clear intent)
+# -----------------------------
+
+RetrainPipeline = Callable[[Dict[str, Any]], Any]
+EvaluateModelFn = Callable[[Any], Dict[str, Any]]
 
 
 class ModelActionExecutor:
@@ -20,8 +28,8 @@ class ModelActionExecutor:
         self,
         *,
         model_store: ModelStore,
-        retrain_pipeline: callable,
-        evaluate_model: callable,
+        retrain_pipeline: RetrainPipeline,
+        evaluate_model: EvaluateModelFn,
         dry_run: bool = False,
     ):
         self.store = model_store
@@ -47,7 +55,7 @@ class ModelActionExecutor:
             return None
 
         if action == ModelAction.REJECT:
-            # Explicit no-op; logged elsewhere
+            # Explicit no-op; decision already logged
             return None
 
         if action == ModelAction.RETRAIN:
