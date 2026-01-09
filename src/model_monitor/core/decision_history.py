@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections import deque
 from typing import Iterator
 
-from model_monitor.core.decisions import Decision
-
+from model_monitor.core.decision_record import DecisionRecord
 
 class DecisionHistory:
     """
@@ -20,15 +19,15 @@ class DecisionHistory:
     """
 
     def __init__(self, maxlen: int = 1000):
-        self._records: deque[Decision] = deque(maxlen=maxlen)
+        self._records: deque[DecisionRecord] = deque(maxlen=maxlen)
 
-    def record(self, decision: Decision) -> None:
+    def record(self, record: DecisionRecord) -> None:
         """Record a new decision."""
-        self._records.append(decision)
+        self._records.append(record)
 
-    def __iter__(self) -> Iterator[Decision]:
+    def __iter__(self) -> Iterator[DecisionRecord]:
         return iter(self._records)
 
-    def tail(self, limit: int = 100) -> list[Decision]:
+    def tail(self, limit: int = 100) -> list[DecisionRecord]:
         """Return the most recent decisions."""
         return list(self._records)[-limit:]

@@ -1,27 +1,19 @@
 from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import Mapping
-
-from model_monitor.core.decisions import Decision
-from model_monitor.core.decision_explanation import DecisionExplanation
+from typing import Sequence
+from model_monitor.core.decisions import DecisionType
 
 
 @dataclass(frozen=True)
 class DecisionSnapshot:
     """
-    Immutable snapshot of a decision event.
-
-    Used for:
-    - audits
-    - replay
-    - simulation
+    Immutable snapshot of system state at decision time.
     """
 
     batch_index: int
-    decision: Decision
-    explanation: DecisionExplanation
-
-    metrics: Mapping[str, float]
-    model_state: Mapping[str, str]
-    timestamp: float
+    trust_score: float
+    f1: float
+    f1_baseline: float
+    drift_score: float
+    recent_actions: Sequence[DecisionType] | None
+    captured_at: float

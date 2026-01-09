@@ -9,7 +9,7 @@ from model_monitor.monitoring.types import MetricRecord, DecisionType
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.core.decision_history import DecisionHistory
-from model_monitor.ui.decision_analytics import DecisionAnalytics
+from model_monitor.core.decision_analytics import DecisionAnalytics
 from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
 from model_monitor.core.decisions import Decision
 
