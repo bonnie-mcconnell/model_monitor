@@ -1,12 +1,36 @@
 from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Mapping, Any
+
 from model_monitor.core.decisions import Decision
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decision_explanation import DecisionExplanation
+
+
+@dataclass(frozen=True)
+class DecisionExplanation:
+    """
+    Human-readable, structured explanation for a decision.
+
+    Intended for:
+    - dashboards
+    - audits
+    - user-facing APIs
+    """
+
+    summary: str
+    rule_triggered: str
+    contributing_factors: Mapping[str, Any]
 
 
 class DecisionExplainer:
     """
     Derives explanations from decisions + snapshots.
+
+    This layer is:
+    - non-authoritative
+    - presentation-focused
+    - side-effect free
     """
 
     def explain(
@@ -36,5 +60,6 @@ class DecisionExplainer:
                 "f1": snapshot.f1,
                 "f1_baseline": snapshot.f1_baseline,
                 "drift_score": snapshot.drift_score,
+                "batch_index": snapshot.batch_index,
             },
         )
