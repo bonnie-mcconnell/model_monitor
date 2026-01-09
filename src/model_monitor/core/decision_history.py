@@ -1,33 +1,51 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Iterator
+from typing import Iterator, Optional
 
-from model_monitor.core.decision_record import DecisionRecord
+from model_monitor.core.decisions import Decision
+from model_monitor.storage.decision_store import DecisionStore
+
 
 class DecisionHistory:
     """
     In-memory decision history buffer.
 
-    Purpose:
-    - Capture recent operational decisions
-    - Support dashboards, APIs, and analytics
-    - Explicit write path, read-only iteration
-
-    This is intentionally ephemeral.
-    Persistence can be layered on later if needed.
+    Optionally mirrors writes to persistent storage.
     """
 
-    def __init__(self, maxlen: int = 1000):
-        self._records: deque[DecisionRecord] = deque(maxlen=maxlen)
+    def __init__(
+        self,
+        maxlen: int = 1000,
+        store: Optional[DecisionStore] = None,
+    ):
+        self._records: deque[Decision] = deque(maxlen=maxlen)
+        self._store = store
 
-    def record(self, record: DecisionRecord) -> None:
-        """Record a new decision."""
-        self._records.append(record)
+    def record(
+        self,
+        decision: Decision,
+        *,
+        batch_index: int | None = None,
+        trust_score: float | None = None,
+        f1: float | None = None,
+        drift_score: float | None = None,
+        model_version: str | None = None,
+    ) -> None:
+        self._records.append(decision)
 
-    def __iter__(self) -> Iterator[DecisionRecord]:
+        if self._store is not None:
+            self._store.record(
+                decision=decision,
+                batch_index=batch_index,
+                trust_score=trust_score,
+                f1=f1,
+                drift_score=drift_score,
+                model_version=model_version,
+            )
+
+    def __iter__(self) -> Iterator[Decision]:
         return iter(self._records)
 
-    def tail(self, limit: int = 100) -> list[DecisionRecord]:
-        """Return the most recent decisions."""
+    def tail(self, limit: int = 100) -> list[Decision]:
         return list(self._records)[-limit:]

@@ -12,6 +12,9 @@ from model_monitor.core.decision_history import DecisionHistory
 from model_monitor.core.decision_analytics import DecisionAnalytics
 from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
 from model_monitor.core.decisions import Decision
+from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.storage.models.decision_record import DecisionRecordORM
+
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -24,6 +27,9 @@ metrics_store = MetricsStore()
 summary_store = MetricsSummaryStore()
 
 decision_history = DecisionHistory()
+decision_analytics = DecisionAnalytics(decision_history)
+decision_store = DecisionStore()
+decision_history = DecisionHistory(store=decision_store)
 decision_analytics = DecisionAnalytics(decision_history)
 
 
@@ -148,6 +154,23 @@ def get_decision_summary():
 @router.get("/decisions/tail")
 def get_decision_tail(limit: int = Query(50, ge=1, le=500)):
     return decision_analytics.decision_tail(limit=limit)
+
+@router.get("/decisions/history")
+def get_decision_history(limit: int = Query(100, ge=1, le=1000)):
+    rows = decision_store.tail(limit)
+    return [
+        {
+            "timestamp": r.timestamp,
+            "batch_index": r.batch_index,
+            "action": r.action,
+            "reason": r.reason,
+            "trust_score": r.trust_score,
+            "f1": r.f1,
+            "drift_score": r.drift_score,
+            "model_version": r.model_version,
+        }
+        for r in reversed(rows)
+    ]
 
 
 # ---------------------------------------------------------------------
