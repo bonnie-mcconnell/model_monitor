@@ -3,65 +3,48 @@ import logging
 from typing import Optional
 
 from model_monitor.monitoring.aggregation import start_aggregation_loop
+from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
+from model_monitor.storage.metrics_summary_history_store import (
+    MetricsSummaryHistoryStore,
+)
 
 log = logging.getLogger(__name__)
 
 
-async def _run_aggregation_loop(
+def start_background_aggregation_loop(
+    *,
     metrics_store: Optional[MetricsStore] = None,
     summary_store: Optional[MetricsSummaryStore] = None,
+    history_store: Optional[MetricsSummaryHistoryStore] = None,
     poll_interval: int = 60,
 ) -> None:
     """
-    Async loop to continuously aggregate metrics in the background.
+    Start the background metrics aggregation loop.
 
-    Args:
-        metrics_store: Optional pre-initialized MetricsStore instance.
-        summary_store: Optional pre-initialized MetricsSummaryStore instance.
-        poll_interval: Time in seconds between aggregation runs.
+    Intended to be called during FastAPI startup.
     """
     metrics_store = metrics_store or MetricsStore()
     summary_store = summary_store or MetricsSummaryStore()
+    history_store = history_store or MetricsSummaryHistoryStore()
+    retrain_buffer = RetrainEvidenceBuffer(min_samples=5)
 
-    log.info("Starting metrics aggregation loop with interval %s seconds", poll_interval)
-
-    while True:
-        try:
-            await start_aggregation_loop(poll_interval=poll_interval)
-        except Exception:
-            log.exception("Metrics aggregation iteration failed")
-        await asyncio.sleep(poll_interval)
-
-
-def start_background_aggregation_loop(
-    metrics_store: Optional[MetricsStore] = None,
-    summary_store: Optional[MetricsSummaryStore] = None,
-    poll_interval: int = 60,
-) -> None:
-    """
-    Entry point to start the aggregation loop in a separate asyncio task.
-
-    This function is intended to be called during FastAPI startup.
-    """
-    loop = asyncio.get_event_loop()
+    async def _runner() -> None:
+        log.info(
+            "Starting metrics aggregation loop (interval=%s seconds)",
+            poll_interval,
+        )
+        await start_aggregation_loop(
+            metrics_store=metrics_store,
+            summary_store=summary_store,
+            history_store=history_store,
+            retrain_buffer=retrain_buffer,
+            poll_interval=poll_interval,
+        )
 
     try:
-        loop.create_task(
-            _run_aggregation_loop(
-                metrics_store=metrics_store,
-                summary_store=summary_store,
-                poll_interval=poll_interval,
-            )
-        )
-        log.info("Metrics aggregation task scheduled successfully")
+        loop = asyncio.get_running_loop()
+        loop.create_task(_runner())
     except RuntimeError:
-        log.warning("No running event loop; starting a new one")
-        asyncio.run(
-            _run_aggregation_loop(
-                metrics_store=metrics_store,
-                summary_store=summary_store,
-                poll_interval=poll_interval,
-            )
-        )
+        asyncio.run(_runner())

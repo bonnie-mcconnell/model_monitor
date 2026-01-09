@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import dataclass
 from typing import Sequence
 
 from model_monitor.monitoring.types import MetricRecord
-from model_monitor.monitoring.trust_score import compute_trust_score
+from model_monitor.monitoring.trust_score import (
+    compute_trust_score,
+    TrustScoreComponents,
+)
 from model_monitor.monitoring.alerting import check_alerts
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
@@ -28,10 +32,21 @@ AGGREGATION_WINDOWS: dict[str, int] = {
 
 
 # ---------------------------------------------------------------------
-# Process-wide retrain evidence buffer
+# Domain model
 # ---------------------------------------------------------------------
 
-_retrain_buffer = RetrainEvidenceBuffer(min_samples=5)
+@dataclass(frozen=True)
+class AggregatedSummary:
+    window: str
+    n_batches: int
+    avg_accuracy: float
+    avg_f1: float
+    avg_confidence: float
+    avg_drift_score: float
+    avg_latency_ms: float
+    trust_score: float
+    trust_components: TrustScoreComponents
+    computed_at: float
 
 
 # ---------------------------------------------------------------------
@@ -42,6 +57,8 @@ def aggregate_once(
     *,
     metrics_store: MetricsStore,
     summary_store: MetricsSummaryStore,
+    history_store: MetricsSummaryHistoryStore,
+    retrain_buffer: RetrainEvidenceBuffer,
     now: float | None = None,
 ) -> None:
     """
@@ -50,17 +67,15 @@ def aggregate_once(
     Responsibilities:
     - aggregate batch-level metrics into rolling windows
     - compute trust scores
-    - persist aggregated summaries
+    - persist rolling + historical summaries
     - emit alerts (side-effect only)
     - accumulate retrain evidence
 
-    This function does NOT:
-    - make operational decisions
-    - trigger retraining
-    - mutate model state
+    This function intentionally:
+    - does NOT trigger retraining
+    - does NOT mutate model state
     """
-    if now is None:
-        now = time.time()
+    now = now or time.time()
 
     for window, seconds in AGGREGATION_WINDOWS.items():
         records, _ = metrics_store.list(
@@ -71,57 +86,63 @@ def aggregate_once(
         if not records:
             continue
 
-        summary = _aggregate_records(records)
+        summary = _aggregate_records(window, records)
 
-        # ---- Accumulate retrain evidence (monitoring-only) ----
-        _retrain_buffer.add_summary(
-            accuracy=summary["avg_accuracy"],
-            f1=summary["avg_f1"],
-            drift_score=summary["avg_drift_score"],
-            trust_score=summary["trust_score"],
-            timestamp=summary["computed_at"],
+        # ---- Accumulate retrain evidence ----
+        retrain_buffer.add_summary(
+            accuracy=summary.avg_accuracy,
+            f1=summary.avg_f1,
+            drift_score=summary.avg_drift_score,
+            trust_score=summary.trust_score,
+            timestamp=summary.computed_at,
         )
 
         # ---- Persist rolling summary ----
         summary_store.upsert(
             window=window,
-            n_batches=summary["n_batches"],
-            avg_accuracy=summary["avg_accuracy"],
-            avg_f1=summary["avg_f1"],
-            avg_confidence=summary["avg_confidence"],
-            avg_drift_score=summary["avg_drift_score"],
-            avg_latency_ms=summary["avg_latency_ms"],
+            n_batches=summary.n_batches,
+            avg_accuracy=summary.avg_accuracy,
+            avg_f1=summary.avg_f1,
+            avg_confidence=summary.avg_confidence,
+            avg_drift_score=summary.avg_drift_score,
+            avg_latency_ms=summary.avg_latency_ms,
         )
-        
-        history_store = MetricsSummaryHistoryStore()
 
+        # ---- Persist historical snapshot ----
         history_store.write(
             window=window,
-            timestamp=summary["computed_at"],
-            n_batches=summary["n_batches"],
-            avg_accuracy=summary["avg_accuracy"],
-            avg_f1=summary["avg_f1"],
-            avg_confidence=summary["avg_confidence"],
-            avg_drift_score=summary["avg_drift_score"],
-            avg_latency_ms=summary["avg_latency_ms"],
+            timestamp=summary.computed_at,
+            n_batches=summary.n_batches,
+            avg_accuracy=summary.avg_accuracy,
+            avg_f1=summary.avg_f1,
+            avg_confidence=summary.avg_confidence,
+            avg_drift_score=summary.avg_drift_score,
+            avg_latency_ms=summary.avg_latency_ms,
         )
 
-
         # ---- Side effects only ----
-        check_alerts(window, summary)
+        check_alerts(window, {
+            "trust_score": summary.trust_score,
+        })
 
 
-async def start_aggregation_loop(poll_interval: int = 60) -> None:
+async def start_aggregation_loop(
+    *,
+    metrics_store: MetricsStore,
+    summary_store: MetricsSummaryStore,
+    history_store: MetricsSummaryHistoryStore,
+    retrain_buffer: RetrainEvidenceBuffer,
+    poll_interval: int = 60,
+) -> None:
     """
     Background async aggregation loop.
     """
-    metrics_store = MetricsStore()
-    summary_store = MetricsSummaryStore()
-
     while True:
         aggregate_once(
             metrics_store=metrics_store,
             summary_store=summary_store,
+            history_store=history_store,
+            retrain_buffer=retrain_buffer,
         )
         await asyncio.sleep(poll_interval)
 
@@ -130,7 +151,10 @@ async def start_aggregation_loop(poll_interval: int = 60) -> None:
 # Internal helpers
 # ---------------------------------------------------------------------
 
-def _aggregate_records(records: Sequence[MetricRecord]) -> dict:
+def _aggregate_records(
+    window: str,
+    records: Sequence[MetricRecord],
+) -> AggregatedSummary:
     """
     Aggregate batch-level metrics.
 
@@ -154,16 +178,15 @@ def _aggregate_records(records: Sequence[MetricRecord]) -> dict:
         decision_latency_ms=avg_latency,
     )
 
-    return {
-        # persisted
-        "n_batches": n,
-        "avg_accuracy": avg_accuracy,
-        "avg_f1": avg_f1,
-        "avg_confidence": avg_confidence,
-        "avg_drift_score": avg_drift,
-        "avg_latency_ms": avg_latency,
-        # derived (monitoring only)
-        "trust_score": trust_score,
-        "trust_components": trust_components,
-        "computed_at": time.time(),
-    }
+    return AggregatedSummary(
+        window=window,
+        n_batches=n,
+        avg_accuracy=avg_accuracy,
+        avg_f1=avg_f1,
+        avg_confidence=avg_confidence,
+        avg_drift_score=avg_drift,
+        avg_latency_ms=avg_latency,
+        trust_score=trust_score,
+        trust_components=trust_components,
+        computed_at=time.time(),
+    )
