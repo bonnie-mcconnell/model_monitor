@@ -10,7 +10,7 @@ import pandas as pd
 from model_monitor.config.settings import AppConfig, load_config
 from model_monitor.inference.predict import Predictor
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
-from model_monitor.monitoring.logging_config import setup_logging
+from model_monitor.config.logging_config import setup_logging
 from model_monitor.storage.model_store import ModelStore, get_active_version
 from model_monitor.training.retrain_pipeline import RetrainPipeline
 
