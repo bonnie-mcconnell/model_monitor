@@ -14,7 +14,7 @@ from model_monitor.config.settings import AppConfig
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision
 from model_monitor.monitoring.drift import DriftMonitor
-from model_monitor.storage.decision_history import DecisionHistory
+from model_monitor.core.decision_history import DecisionHistory
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.storage.metrics_store import MetricsStore
 

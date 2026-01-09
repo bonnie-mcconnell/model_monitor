@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, Sequence
 import pandas as pd
 
-from model_monitor.storage.decision_history import DecisionHistory
+from model_monitor.core.decision_history import DecisionHistory
 
 
 class DecisionAnalytics:

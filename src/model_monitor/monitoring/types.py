@@ -1,7 +1,6 @@
-from typing import TypedDict, Literal
+from typing import TypedDict
 
-
-DecisionType = Literal["none", "retrain", "promote", "rollback", "reject"]
+from model_monitor.core.decisions import DecisionType
 
 
 class MetricRecord(TypedDict):
