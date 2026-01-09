@@ -188,16 +188,23 @@ class Predictor:
         # ----------------------------------------------
         # Decision logic (TYPE-SAFE)
         # ----------------------------------------------
-        baseline = self.f1_baseline  # 👈 REQUIRED for Pylance narrowing
+        baseline = self.f1_baseline  # for pylance narrowing
         has_labels = y_true is not None
         enough_samples = len(X) >= self.cfg.retrain.min_samples
+
+        # Simple trust heuristic
+        decision_trust_score = float(
+            max(0.0, min(1.0, (1.0 - drift_score)))
+        )
 
         if has_labels and baseline is not None and enough_samples:
             decision = self.decision_engine.decide(
                 batch_index=self.batch_index,
+                trust_score=decision_trust_score,
                 f1=f1,
-                f1_baseline=baseline,  # ✅ float, not Optional
+                f1_baseline=baseline,
                 drift_score=drift_score,
+                recent_actions=self.decision_history.recent_actions(),
             )
         else:
             decision = Decision(

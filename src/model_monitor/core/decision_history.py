@@ -49,3 +49,28 @@ class DecisionHistory:
 
     def tail(self, limit: int = 100) -> list[Decision]:
         return list(self._records)[-limit:]
+
+
+# TODO: ADD/merge files etc
+
+from __future__ import annotations
+
+from collections import deque
+from typing import Deque, List
+
+from model_monitor.core.decisions import Decision, DecisionType
+
+
+class DecisionHistory:
+    """
+    In-memory rolling decision history.
+    """
+
+    def __init__(self, maxlen: int = 50):
+        self._decisions: Deque[Decision] = deque(maxlen=maxlen)
+
+    def record(self, decision: Decision) -> None:
+        self._decisions.append(decision)
+
+    def recent_actions(self) -> List[DecisionType]:
+        return [d.action for d in self._decisions]

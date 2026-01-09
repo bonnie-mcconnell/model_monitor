@@ -16,6 +16,12 @@ class DecisionMetadata(TypedDict, total=False):
     cooldown_batches: int
     batches_since_last_retrain: int
 
+    # Diagnostic/gating metadata
+    has_labels: bool
+    has_baseline: bool
+    n_samples: int
+
+
 
 @dataclass(frozen=True)
 class Decision:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 
 from model_monitor.core.decisions import Decision
 from model_monitor.core.model_actions import ModelAction
@@ -19,10 +19,8 @@ class ModelTransitionManager:
         self,
         *,
         decision: Decision,
-        context: Optional[dict] = None,
+        context: Optional[dict[str, Any]] = None,
     ) -> Optional[str]:
-        """
-        Apply a decision as a model lifecycle transition.
-        """
         action = ModelAction(decision.action)
-        return self.executor.execute(action=action, context=context)
+        safe_context: dict[str, Any] = context or {}
+        return self.executor.execute(action=action, context=safe_context)
