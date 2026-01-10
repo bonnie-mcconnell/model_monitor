@@ -1,8 +1,10 @@
 from fastapi import APIRouter
 
-from model_monitor.storage import model_store
+from model_monitor.storage.model_store import ModelStore
 
 router = APIRouter(tags=["health"])
+
+model_store = ModelStore()
 
 
 @router.get("/health")

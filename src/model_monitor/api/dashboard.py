@@ -1,19 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Query, HTTPException
 
-from model_monitor.monitoring.types import MetricRecord, DecisionType
+from model_monitor.monitoring.types import MetricRecord
+from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
-from model_monitor.core.decision_history import DecisionHistory
-from model_monitor.core.decision_analytics import DecisionAnalytics
-from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
-from model_monitor.core.decisions import Decision
 from model_monitor.storage.decision_store import DecisionStore
-from model_monitor.storage.models.decision_record import DecisionRecordORM
+from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
 
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -25,10 +22,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 metrics_store = MetricsStore()
 summary_store = MetricsSummaryStore()
-
 decision_store = DecisionStore()
-decision_history = DecisionHistory(store=decision_store)
-decision_analytics = DecisionAnalytics(decision_history)
 
 
 # ---------------------------------------------------------------------
@@ -62,15 +56,12 @@ def write_metric(
         "new_model": None,
     }
 
-    decision = Decision(
-        action=action,
-        reason=reason,
-        metadata={},
+    metrics_store.write(record)
+
+    decision_store.record(
+        decision=Decision(action=action, reason=reason, metadata={})
     )
 
-    decision_history.record(decision)
-
-    metrics_store.write(record)
     return {"status": "ok"}
 
 
@@ -79,9 +70,7 @@ def write_metric(
 # ---------------------------------------------------------------------
 
 @router.get("/metrics/tail")
-def get_metrics_tail(
-    limit: int = Query(100, ge=1, le=1000),
-):
+def get_metrics_tail(limit: int = Query(100, ge=1, le=1000)):
     return metrics_store.tail(limit=limit)
 
 
@@ -140,18 +129,56 @@ def get_metrics_summary(window: str):
     return summary
 
 
+@router.get("/metrics/summary/{window}/history")
+def get_metrics_summary_history(
+    window: str,
+    limit: int = Query(100, ge=1, le=1000),
+):
+    from model_monitor.storage.metrics_summary_history_store import (
+        MetricsSummaryHistoryStore,
+    )
+
+    store = MetricsSummaryHistoryStore()
+
+    with store._session_factory() as session:
+        rows = (
+            session.query(MetricsSummaryHistoryORM)
+            .filter(MetricsSummaryHistoryORM.window == window)
+            .order_by(MetricsSummaryHistoryORM.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+
+    return {
+        "window": window,
+        "items": [
+            {
+                "window": r.window,
+                "timestamp": r.timestamp,
+                "n_batches": r.n_batches,
+                "avg_accuracy": r.avg_accuracy,
+                "avg_f1": r.avg_f1,
+                "avg_confidence": r.avg_confidence,
+                "avg_drift_score": r.avg_drift_score,
+                "avg_latency_ms": r.avg_latency_ms,
+            }
+            for r in reversed(rows)
+        ],
+    }
+
+
 # ---------------------------------------------------------------------
 # Decisions
 # ---------------------------------------------------------------------
 
 @router.get("/decisions/summary")
-def get_decision_summary():
-    return decision_analytics.decision_summary()
+def get_decision_summary() -> Dict[str, int]:
+    rows = decision_store.tail(limit=10_000)
+    summary: Dict[str, int] = {}
+    for r in rows:
+        summary[r.action] = summary.get(r.action, 0) + 1
+    return summary
 
-
-@router.get("/decisions/tail")
-def get_decision_tail(limit: int = Query(50, ge=1, le=500)):
-    return decision_analytics.decision_tail(limit=limit)
 
 @router.get("/decisions/history")
 def get_decision_history(limit: int = Query(100, ge=1, le=1000)):
@@ -183,42 +210,3 @@ def promote_model(model_version: str):
 @router.post("/models/{model_version}/rollback")
 def rollback_model(model_version: str):
     raise HTTPException(status_code=501, detail="Model rollback not implemented")
-
-# TODO: addition, check
-@router.get("/metrics/summary/{window}/history")
-def get_metrics_summary_history(
-    window: str,
-    limit: int = Query(100, ge=1, le=1000),
-):
-    from model_monitor.storage.metrics_summary_history_store import (
-        MetricsSummaryHistoryStore,
-    )
-
-    store = MetricsSummaryHistoryStore()
-
-    # simple version: query directly for now
-    with store._session_factory() as session:
-        rows = (
-            session.query(MetricsSummaryHistoryORM)
-            .filter(MetricsSummaryHistoryORM.window == window)
-            .order_by(MetricsSummaryHistoryORM.timestamp.desc())
-            .limit(limit)
-            .all()
-        )
-
-    return {
-        "window": window,
-        "items": [
-            {
-                "window": r.window,
-                "timestamp": r.timestamp,
-                "n_batches": r.n_batches,
-                "avg_accuracy": r.avg_accuracy,
-                "avg_f1": r.avg_f1,
-                "avg_confidence": r.avg_confidence,
-                "avg_drift_score": r.avg_drift_score,
-                "avg_latency_ms": r.avg_latency_ms,
-            }
-            for r in reversed(rows)
-        ],
-    }
