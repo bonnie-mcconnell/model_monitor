@@ -5,16 +5,16 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple, Any
 
-import joblib # type: ignore
+import joblib  # type: ignore
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, f1_score # type: ignore
+from sklearn.metrics import accuracy_score, f1_score  # type: ignore
 
 from model_monitor.config.settings import AppConfig
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision
-from model_monitor.monitoring.drift import DriftMonitor
 from model_monitor.core.decision_history import DecisionHistory
+from model_monitor.monitoring.drift import DriftMonitor
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.storage.metrics_store import MetricsStore
 
@@ -34,9 +34,9 @@ class Predictor:
     - Detect drift
     - Produce decisions
 
-    Does NOT:
-    - Execute retraining
-    - Promote or rollback models
+    Explicitly does NOT:
+    - Trigger retraining
+    - Promote / rollback models
     - Aggregate metrics
     """
 
@@ -55,16 +55,12 @@ class Predictor:
 
         self.model: Optional[Any] = None
         self._loaded_version: Optional[str] = None
-        self._loaded_mtime: float | None = None
-        # Tracks whether a model was already active when the predictor started.
-        # Used to distinguish "initial silent load" from "model appeared later".
+        self._loaded_mtime: Optional[float] = None
+
+        # Used to distinguish startup load vs later appearance
         self._model_existed_at_startup = self.model_path.exists()
 
-
-        # Optional baseline (rollback logic must not fire without it)
-        self.f1_baseline: Optional[float] = (
-            float(f1_baseline) if f1_baseline is not None else None
-        )
+        self.f1_baseline = float(f1_baseline) if f1_baseline is not None else None
 
         self.batch_index = 0
         self.feature_names: list[str] = []
@@ -82,22 +78,19 @@ class Predictor:
             )
 
     # --------------------------------------------------
-    # Reload logic
+    # Model reload logic
     # --------------------------------------------------
     def reload(self) -> None:
         if not self.model_path.exists():
             self.model = None
             self._loaded_version = None
+            self._loaded_mtime = None
             return
 
         self.model = joblib.load(self.model_path)
         self._loaded_version = self._load_active_version()
         self._loaded_mtime = self.model_path.stat().st_mtime
 
-
-    # NOTE:
-    # Initial model load is NOT considered a reload.
-    # Only version changes trigger reload=True.
     def reload_if_changed(self) -> bool:
         """
         Reload model if (and only if) the active model changed.
@@ -115,10 +108,7 @@ class Predictor:
         # First-ever load
         if self._loaded_version is None:
             self.reload()
-
-            # Reload only if the model appeared AFTER startup
             return not self._model_existed_at_startup
-
 
         version_changed = current_version != self._loaded_version
         file_changed = (
@@ -186,16 +176,14 @@ class Predictor:
             drift_score = float(self.drift_monitor.update(X.values))
 
         # ----------------------------------------------
-        # Decision logic (TYPE-SAFE)
+        # Decision logic
         # ----------------------------------------------
-        baseline = self.f1_baseline  # for pylance narrowing
+        baseline = self.f1_baseline
         has_labels = y_true is not None
         enough_samples = len(X) >= self.cfg.retrain.min_samples
 
-        # Simple trust heuristic
-        decision_trust_score = float(
-            max(0.0, min(1.0, (1.0 - drift_score)))
-        )
+        # Simple bounded trust proxy (final trust computed elsewhere)
+        decision_trust_score = max(0.0, min(1.0, 1.0 - drift_score))
 
         if has_labels and baseline is not None and enough_samples:
             decision = self.decision_engine.decide(
