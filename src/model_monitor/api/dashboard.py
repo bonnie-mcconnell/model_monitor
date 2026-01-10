@@ -26,8 +26,6 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 metrics_store = MetricsStore()
 summary_store = MetricsSummaryStore()
 
-decision_history = DecisionHistory()
-decision_analytics = DecisionAnalytics(decision_history)
 decision_store = DecisionStore()
 decision_history = DecisionHistory(store=decision_store)
 decision_analytics = DecisionAnalytics(decision_history)
