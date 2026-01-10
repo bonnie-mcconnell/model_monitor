@@ -207,3 +207,7 @@ def rollback(*, version: str) -> str:
 
 def get_active_version() -> Optional[str]:
     return _default_store.get_active_version()
+
+
+def list_versions() -> List[Dict[str, str]]:
+    return _default_store.list_versions()

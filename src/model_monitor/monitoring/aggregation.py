@@ -13,16 +13,18 @@ from model_monitor.monitoring.trust_score import (
 from model_monitor.monitoring.alerting import check_alerts
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
+from model_monitor.core.decision_engine import DecisionEngine
+from model_monitor.core.decision_snapshot import DecisionSnapshot
+from model_monitor.core.decision_executor import DecisionExecutor
+
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.metrics_summary_history_store import (
     MetricsSummaryHistoryStore,
 )
+from model_monitor.config.settings import load_config
+from model_monitor.training.retrain_pipeline import RetrainPipeline
 
-
-# ---------------------------------------------------------------------
-# Aggregation windows (seconds)
-# ---------------------------------------------------------------------
 
 AGGREGATION_WINDOWS: dict[str, int] = {
     "5m": 5 * 60,
@@ -30,10 +32,6 @@ AGGREGATION_WINDOWS: dict[str, int] = {
     "24h": 24 * 60 * 60,
 }
 
-
-# ---------------------------------------------------------------------
-# Domain model
-# ---------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class AggregatedSummary:
@@ -49,32 +47,16 @@ class AggregatedSummary:
     computed_at: float
 
 
-# ---------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------
-
 def aggregate_once(
     *,
     metrics_store: MetricsStore,
     summary_store: MetricsSummaryStore,
     history_store: MetricsSummaryHistoryStore,
     retrain_buffer: RetrainEvidenceBuffer,
+    decision_engine: DecisionEngine,
+    decision_executor: DecisionExecutor,
     now: float | None = None,
 ) -> None:
-    """
-    Run a single aggregation pass.
-
-    Responsibilities:
-    - aggregate batch-level metrics into rolling windows
-    - compute trust scores
-    - persist rolling + historical summaries
-    - emit alerts (side-effect only)
-    - accumulate retrain evidence
-
-    This function intentionally:
-    - does NOT trigger retraining
-    - does NOT mutate model state
-    """
     now = now or time.time()
 
     for window, seconds in AGGREGATION_WINDOWS.items():
@@ -88,7 +70,6 @@ def aggregate_once(
 
         summary = _aggregate_records(window, records)
 
-        # ---- Accumulate retrain evidence ----
         retrain_buffer.add_summary(
             accuracy=summary.avg_accuracy,
             f1=summary.avg_f1,
@@ -97,7 +78,6 @@ def aggregate_once(
             timestamp=summary.computed_at,
         )
 
-        # ---- Persist rolling summary ----
         summary_store.upsert(
             window=window,
             n_batches=summary.n_batches,
@@ -108,7 +88,6 @@ def aggregate_once(
             avg_latency_ms=summary.avg_latency_ms,
         )
 
-        # ---- Persist historical snapshot ----
         history_store.write(
             window=window,
             timestamp=summary.computed_at,
@@ -120,10 +99,33 @@ def aggregate_once(
             avg_latency_ms=summary.avg_latency_ms,
         )
 
-        # ---- Side effects only ----
-        check_alerts(window, {
-            "trust_score": summary.trust_score,
-        })
+        decision = decision_engine.decide(
+            batch_index=summary.n_batches,
+            trust_score=summary.trust_score,
+            f1=summary.avg_f1,
+            f1_baseline=summary.avg_f1,  # placeholder baseline hook
+            drift_score=summary.avg_drift_score,
+            recent_actions=None,
+        )
+
+        snapshot = DecisionSnapshot(
+            batch_index=summary.n_batches,
+            trust_score=summary.trust_score,
+            f1=summary.avg_f1,
+            f1_baseline=summary.avg_f1,
+            drift_score=summary.avg_drift_score,
+            recent_actions=None,
+            captured_at=summary.computed_at,
+        )
+
+        asyncio.create_task(
+            decision_executor.execute(
+                decision=decision,
+                snapshot=snapshot,
+            )
+        )
+
+        check_alerts(window, {"trust_score": summary.trust_score})
 
 
 async def start_aggregation_loop(
@@ -134,34 +136,29 @@ async def start_aggregation_loop(
     retrain_buffer: RetrainEvidenceBuffer,
     poll_interval: int = 60,
 ) -> None:
-    """
-    Background async aggregation loop.
-    """
+    cfg = load_config()
+    engine = DecisionEngine(cfg)
+    executor = DecisionExecutor(
+        retrain_buffer=retrain_buffer,
+        retrain_pipeline=RetrainPipeline(),
+    )
+
     while True:
         aggregate_once(
             metrics_store=metrics_store,
             summary_store=summary_store,
             history_store=history_store,
             retrain_buffer=retrain_buffer,
+            decision_engine=engine,
+            decision_executor=executor,
         )
         await asyncio.sleep(poll_interval)
 
-
-# ---------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------
 
 def _aggregate_records(
     window: str,
     records: Sequence[MetricRecord],
 ) -> AggregatedSummary:
-    """
-    Aggregate batch-level metrics.
-
-    Semantics:
-    - One record == one inference batch
-    - All averages are unweighted batch means
-    """
     n = len(records)
 
     avg_accuracy = sum(r["accuracy"] for r in records) / n
