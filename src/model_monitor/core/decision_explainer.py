@@ -8,7 +8,7 @@ from model_monitor.core.decision_snapshot import DecisionSnapshot
 
 
 @dataclass(frozen=True)
-class DecisionExplanation:
+class ExplainedDecision:
     """
     Human-readable, structured explanation for a decision.
 
@@ -38,7 +38,7 @@ class DecisionExplainer:
         *,
         decision: Decision,
         snapshot: DecisionSnapshot,
-    ) -> DecisionExplanation:
+    ) -> ExplainedDecision:
         action = decision.action
 
         if action == "reject":
@@ -52,7 +52,7 @@ class DecisionExplainer:
         else:
             rule = "within_thresholds"
 
-        return DecisionExplanation(
+        return ExplainedDecision(
             summary=decision.reason,
             rule_triggered=rule,
             contributing_factors={

@@ -14,6 +14,9 @@ class DecisionHistory:
     - Maintains a bounded in-memory buffer for fast access
     - Optionally mirrors decisions to persistent storage
     - Serves as the single source of truth for recent actions
+    
+    DecisionHistory is authoritative for *recent* decisions.
+    Persistent storage is for audit & analytics only.
     """
 
     def __init__(
