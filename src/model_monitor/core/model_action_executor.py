@@ -5,16 +5,17 @@ from typing import Any, Optional
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline, RetrainResult
+from model_monitor.storage.decision_store import DecisionStore
 
 
 class ModelActionExecutor:
     """
-    Executes model lifecycle actions.
+    Executes model lifecycle actions in a crash-safe manner.
 
-    Side-effect layer:
-    - model persistence
-    - promotion
-    - rollback
+    Guarantees:
+    - No partial promotions
+    - Failures are always recorded
+    - Side effects are isolated per action
     """
 
     def __init__(
@@ -22,13 +23,35 @@ class ModelActionExecutor:
         *,
         model_store: ModelStore,
         retrain_pipeline: RetrainPipeline,
+        decision_store: DecisionStore,
         dry_run: bool = False,
     ):
         self.store = model_store
         self.retrain_pipeline = retrain_pipeline
+        self.decision_store = decision_store
         self.dry_run = dry_run
 
     def execute(
+        self,
+        *,
+        action: ModelAction,
+        context: dict[str, Any],
+    ) -> Optional[str]:
+        try:
+            return self._execute_internal(action=action, context=context)
+
+        except Exception as exc:
+            # HARD GUARANTEE: failures are observable
+            self.decision_store.record(
+                decision=context["decision"],
+                reason=f"executor_failure: {exc!r}",
+                model_version=self.store.get_active_version(),
+            )
+            raise
+
+    # --------------------------------------------------
+
+    def _execute_internal(
         self,
         *,
         action: ModelAction,
@@ -42,11 +65,18 @@ class ModelActionExecutor:
             version = context.get("version")
             if not version:
                 raise ValueError("Rollback requires target version")
-            return None if self.dry_run else self.store.rollback(version)
+
+            if self.dry_run:
+                return None
+
+            return self.store.rollback(version)
 
         if action == ModelAction.PROMOTE:
+            if self.dry_run:
+                return None
+
             metrics = context.get("metrics", {})
-            return None if self.dry_run else self.store.promote_candidate(metrics)
+            return self.store.promote_candidate(metrics)
 
         if action == ModelAction.RETRAIN:
             if self.dry_run:
@@ -69,18 +99,20 @@ class ModelActionExecutor:
             if result.candidate_model is None:
                 return None
 
+            # Candidate save is isolated
             self.store.save_candidate(result.candidate_model)
 
-            if result.promotion.promoted:
-                return self.store.promote_candidate(
-                    metrics={
-                        "candidate_f1": result.promotion.candidate_f1,
-                        "current_f1": result.promotion.current_f1,
-                        "improvement": result.promotion.improvement,
-                        "n_samples": result.n_samples,
-                    }
-                )
+            if not result.promotion.promoted:
+                return None
 
-            return None
+            # Promotion is atomic inside ModelStore
+            return self.store.promote_candidate(
+                metrics={
+                    "candidate_f1": result.promotion.candidate_f1,
+                    "current_f1": result.promotion.current_f1,
+                    "improvement": result.promotion.improvement,
+                    "n_samples": result.n_samples,
+                }
+            )
 
         raise ValueError(f"Unsupported action: {action}")

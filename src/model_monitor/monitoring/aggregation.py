@@ -107,7 +107,7 @@ def aggregate_once(
             drift_score=summary.avg_drift_score,
             recent_actions=None,
         )
-
+        # TODO
         snapshot = DecisionSnapshot(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
