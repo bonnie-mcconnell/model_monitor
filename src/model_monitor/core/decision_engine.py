@@ -13,11 +13,10 @@ class DecisionEngine:
     POLICY ONLY:
     - No I/O
     - No persistence
-    - No direct model mutation
+    - No model mutation
 
-    NOTE:
-    This engine maintains minimal ephemeral state (retrain cooldown tracking)
-    and is intended to be short-lived or scoped per execution context.
+    Maintains minimal ephemeral state for retrain cooldown tracking.
+    Intended to be scoped per execution context.
     """
 
     def __init__(self, config: AppConfig):
@@ -75,7 +74,7 @@ class DecisionEngine:
         # -----------------------------
         # 3. Sustained degradation → retrain
         # -----------------------------
-        if f1_drop >= self.cfg.retrain.min_f1_drop:
+        if f1_drop >= self.cfg.retrain.min_f1_gain:
             if self._last_retrain_batch is not None:
                 since_last = batch_index - self._last_retrain_batch
                 if since_last < self.cfg.retrain.cooldown_batches:
@@ -101,7 +100,7 @@ class DecisionEngine:
             )
 
         # -----------------------------
-        # 4. Long-term stability → promote
+        # 4. Stability → promote
         # -----------------------------
         if recent_actions is not None:
             n = self.cfg.retrain.min_stable_batches
