@@ -109,3 +109,10 @@ class DecisionEngine:
             reason="System operating within thresholds",
             metadata={"trust_score": trust_score},
         )
+    
+        # TO ADD, CHECK:
+        assert 0.0 <= trust_score <= 1.0
+        assert f1_baseline >= 0.0
+        assert f1 >= 0.0
+
+

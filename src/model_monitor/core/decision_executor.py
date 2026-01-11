@@ -44,6 +44,9 @@ class DecisionExecutor:
         snapshot: DecisionSnapshot,
     ) -> None:
         action = decision.action
+        # TODO: check
+        if decision.action not in {"none", "retrain", "promote", "rollback", "reject"}:
+            raise ValueError(f"Unknown decision action: {decision.action}")
 
         if action == "retrain":
             await self._handle_retrain(snapshot)
