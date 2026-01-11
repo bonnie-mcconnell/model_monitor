@@ -197,6 +197,28 @@ def get_decision_history(limit: int = Query(100, ge=1, le=1000)):
         for r in reversed(rows)
     ]
 
+@router.post("/decisions/simulate")
+def simulate_decision(payload: dict):
+    decision = decision_engine.decide(payload)
+
+    executor = ModelActionExecutor(
+        model_store=model_store,
+        retrain_pipeline=retrain_pipeline,
+        decision_store=decision_store,
+        dry_run=True,
+    )
+
+    executor.execute(
+        action=decision.action,
+        context=decision.context,
+    )
+
+    return {
+        "mode": "simulation",
+        "action": decision.action,
+        "reason": decision.reason,
+    }
+
 
 # ---------------------------------------------------------------------
 # Model lifecycle (roadmap)

@@ -11,6 +11,7 @@ from typing import Any
 API_URL = "http://localhost:8000"
 REQUEST_TIMEOUT = 2.0
 
+simulate = st.toggle("Simulation mode (no side effects)", value=True)
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -175,3 +176,35 @@ st.divider()
 st.caption(
     "Model Monitor • Streaming inference, drift detection, retraining decisions"
 )
+
+# ---------------------------------------------------------------------
+# Simulation Controls
+# ---------------------------------------------------------------------
+
+st.subheader("Decision Simulation")
+
+simulate = st.toggle("Simulation mode (no side effects)", value=True)
+
+if st.button("Simulate next decision"):
+    endpoint = "/decisions/simulate" if simulate else "/decisions/execute"
+
+    try:
+        resp = requests.post(
+            f"{API_URL}{endpoint}",
+            json={},  # payload would normally include batch context
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+        if simulate:
+            st.info(
+                f"🧪 Simulation result: would perform **{result['action']}**\n\n"
+                f"Reason: {result['reason']}"
+            )
+        else:
+            st.success(f"Executed: {result['action']}")
+
+    except requests.RequestException as exc:
+        st.error("Decision request failed")
+        st.caption(str(exc))

@@ -6,6 +6,7 @@ from model_monitor.core.model_actions import ModelAction
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline, RetrainResult
 from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.core.decisions import Decision
 
 
 class ModelActionExecutor:
@@ -41,13 +42,22 @@ class ModelActionExecutor:
             return self._execute_internal(action=action, context=context)
 
         except Exception as exc:
-            # HARD GUARANTEE: failures are observable
-            self.decision_store.record(
-                decision=context["decision"],
-                reason=f"executor_failure: {exc!r}",
-                model_version=self.store.get_active_version(),
+            # Record failure as an explicit decision outcome
+            failed_decision = Decision(
+                action="EXECUTOR_FAILURE",
+                reason=f"{type(exc).__name__}: {exc}",
+                metadata={
+                    "component": "ModelActionExecutor",
+                    "stage": action.value if hasattr(action, "value") else str(action),
+                },
             )
-            raise
+
+        self.decision_store.record(
+            decision=failed_decision,
+            model_version=self.store.get_active_version(),
+        )
+        raise
+
 
     # --------------------------------------------------
 
@@ -66,17 +76,11 @@ class ModelActionExecutor:
             if not version:
                 raise ValueError("Rollback requires target version")
 
-            if self.dry_run:
-                return None
-
-            return self.store.rollback(version)
+            return None if self.dry_run else self.store.rollback(version)
 
         if action == ModelAction.PROMOTE:
-            if self.dry_run:
-                return None
-
             metrics = context.get("metrics", {})
-            return self.store.promote_candidate(metrics)
+            return None if self.dry_run else self.store.promote_candidate(metrics)
 
         if action == ModelAction.RETRAIN:
             if self.dry_run:
@@ -99,13 +103,11 @@ class ModelActionExecutor:
             if result.candidate_model is None:
                 return None
 
-            # Candidate save is isolated
             self.store.save_candidate(result.candidate_model)
 
             if not result.promotion.promoted:
                 return None
 
-            # Promotion is atomic inside ModelStore
             return self.store.promote_candidate(
                 metrics={
                     "candidate_f1": result.promotion.candidate_f1,
