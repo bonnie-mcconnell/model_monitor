@@ -33,8 +33,6 @@ class DecisionExecutor:
     ) -> None:
         self._retrain_buffer = retrain_buffer
         self._retrain_pipeline = retrain_pipeline
-
-        # Prevent overlapping retrain jobs
         self._retrain_lock = asyncio.Lock()
 
     async def execute(
@@ -43,18 +41,19 @@ class DecisionExecutor:
         decision: Decision,
         snapshot: DecisionSnapshot,
     ) -> None:
-        action = decision.action
-        # TODO: check
+        # snapshot intentionally unused for now (future audit / explainability hook)
+        _ = snapshot
+
         if decision.action not in {"none", "retrain", "promote", "rollback", "reject"}:
             raise ValueError(f"Unknown decision action: {decision.action}")
 
-        if action == "retrain":
-            await self._handle_retrain(snapshot)
+        if decision.action == "retrain":
+            await self._handle_retrain()
 
-        elif action == "promote":
+        elif decision.action == "promote":
             await self._handle_promote()
 
-        elif action == "rollback":
+        elif decision.action == "rollback":
             await self._handle_rollback()
 
         # "reject" and "none" have no side effects
@@ -63,7 +62,7 @@ class DecisionExecutor:
     # Action handlers
     # ------------------------------------------------------------------
 
-    async def _handle_retrain(self, snapshot: DecisionSnapshot) -> None:
+    async def _handle_retrain(self) -> None:
         if not self._retrain_buffer.ready():
             log.info("Retrain skipped: insufficient evidence")
             return
@@ -77,13 +76,13 @@ class DecisionExecutor:
             if df.empty:
                 return
 
-            log.info("Starting retrain job (samples=%d)", len(df))
-
             try:
                 current_model = model_store.load_current()
             except FileNotFoundError:
                 current_model = None
                 log.info("No active model found; training baseline model")
+
+            log.info("Starting retrain job (samples=%d)", len(df))
 
             result = await asyncio.to_thread(
                 self._retrain_pipeline.run,
@@ -112,7 +111,7 @@ class DecisionExecutor:
                 )
 
     async def _handle_promote(self) -> None:
-        log.info("Promoting existing candidate model")
+        log.info("Manually promoting existing candidate model")
         model_store.promote_candidate()
 
     async def _handle_rollback(self) -> None:
@@ -122,7 +121,6 @@ class DecisionExecutor:
         if not archived:
             raise RuntimeError("No archived models available for rollback")
 
-        # Roll back to most recent archived version that is not active
         target = next(
             (v["version"] for v in archived if v["version"] != active_version),
             None,

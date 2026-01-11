@@ -40,9 +40,16 @@ class DecisionEngine:
         5. Otherwise → none
         """
 
+        # -----------------------------
+        # Invariants/guardrails
+        # -----------------------------
+        assert 0.0 <= trust_score <= 1.0, "trust_score must be in [0,1]"
+        assert f1 >= 0.0, "f1 must be non-negative"
+        assert f1_baseline >= 0.0, "baseline f1 must be non-negative"
+
         f1_drop = f1_baseline - f1
 
-        # 1. Hard drift guardrail
+        # Hard drift guardrail
         if drift_score >= self.cfg.drift.psi_threshold:
             return Decision(
                 action="reject",
@@ -54,7 +61,7 @@ class DecisionEngine:
                 },
             )
 
-        # 2. Catastrophic regression
+        # Catastrophic regression
         if f1_drop >= self.cfg.rollback.max_f1_drop:
             return Decision(
                 action="rollback",
@@ -67,7 +74,7 @@ class DecisionEngine:
                 },
             )
 
-        # 3. Sustained degradation
+        # Sustained degradation
         if f1_drop >= self.cfg.retrain.min_f1_gain:
             if self._last_retrain_batch is not None:
                 since_last = batch_index - self._last_retrain_batch
@@ -93,7 +100,7 @@ class DecisionEngine:
                 },
             )
 
-        # 4. Promotion
+        # Promotion
         if recent_actions is not None:
             n = self.cfg.retrain.min_stable_batches
             if len(recent_actions) >= n and all(a == "none" for a in recent_actions[-n:]):
@@ -103,16 +110,9 @@ class DecisionEngine:
                     metadata={"stable_batches": n},
                 )
 
-        # 5. Stable
+        # Stable
         return Decision(
             action="none",
             reason="System operating within thresholds",
             metadata={"trust_score": trust_score},
         )
-    
-        # TO ADD, CHECK:
-        assert 0.0 <= trust_score <= 1.0
-        assert f1_baseline >= 0.0
-        assert f1 >= 0.0
-
-
