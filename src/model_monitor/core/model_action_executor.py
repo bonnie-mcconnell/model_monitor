@@ -44,13 +44,15 @@ class ModelActionExecutor:
         except Exception as exc:
             # Record failure as an explicit decision outcome
             failed_decision = Decision(
-                action="EXECUTOR_FAILURE",
-                reason=f"{type(exc).__name__}: {exc}",
+                action="system_error",
+                reason=f"executor failure: {type(exc).__name__}",
                 metadata={
                     "component": "ModelActionExecutor",
-                    "stage": action.value if hasattr(action, "value") else str(action),
+                    "stage": "execute",
+                    "exception_type": type(exc).__name__,
                 },
             )
+
 
         self.decision_store.record(
             decision=failed_decision,

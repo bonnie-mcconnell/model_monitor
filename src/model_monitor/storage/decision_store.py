@@ -30,6 +30,15 @@ class DecisionStore:
         drift_score: float | None = None,
         model_version: str | None = None,
     ) -> None:
+        """
+        Persist a decision to the audit log.
+
+        Note:
+        - Only selected scalar fields are persisted
+        - Decision.metadata is intentionally NOT stored yet
+      (reserved for future JSON / analytics layer)
+        """
+
         session: Session = self._session_factory()
         try:
             row = DecisionRecordORM(

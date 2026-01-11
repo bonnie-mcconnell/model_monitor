@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 
-DecisionType = Literal["none", "retrain", "promote", "rollback", "reject"]
+DecisionType = Literal["none", "retrain", "promote", "rollback", "reject", "system_error"]
 
 
 class DecisionMetadata(TypedDict, total=False):
