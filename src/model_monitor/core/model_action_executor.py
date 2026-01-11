@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from model_monitor.core.model_actions import ModelAction
-from model_monitor.storage.model_store import ModelStore
-from model_monitor.training.retrain_pipeline import RetrainPipeline, RetrainResult
-from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.core.decisions import Decision
+from model_monitor.storage.model_store import ModelStore
+from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.training.retrain_pipeline import RetrainPipeline, RetrainResult
 
 
 class ModelActionExecutor:
@@ -42,24 +42,17 @@ class ModelActionExecutor:
             return self._execute_internal(action=action, context=context)
 
         except Exception as exc:
-            # Record failure as an explicit decision outcome
             failed_decision = Decision(
                 action="system_error",
                 reason=f"executor failure: {type(exc).__name__}",
-                metadata={
-                    "component": "ModelActionExecutor",
-                    "stage": "execute",
-                    "exception_type": type(exc).__name__,
-                },
+                metadata={},  # system failures do not use model decision metadata
             )
 
-
-        self.decision_store.record(
-            decision=failed_decision,
-            model_version=self.store.get_active_version(),
-        )
-        raise
-
+            self.decision_store.record(
+                decision=failed_decision,
+                model_version=self.store.get_active_version(),
+            )
+            raise
 
     # --------------------------------------------------
 
