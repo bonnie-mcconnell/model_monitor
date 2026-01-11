@@ -1,19 +1,31 @@
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Sequence
+
+from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field
+
 from model_monitor.core.decisions import DecisionType
 
 
-@dataclass(frozen=True)
-class DecisionSnapshot:
+class DecisionSnapshot(BaseModel):
     """
-    Immutable snapshot of system state at decision time.
+    Persistent snapshot of a decision and its execution state.
+
+    Used for:
+    - idempotency
+    - crash recovery
+    - auditability
     """
 
-    batch_index: int
-    trust_score: float
-    f1: float
-    f1_baseline: float
-    drift_score: float
-    recent_actions: Sequence[DecisionType] | None
-    captured_at: float
+    decision_id: str
+    action: DecisionType
+    timestamp: float
+
+    model_version: Optional[str] = None
+
+    retrain_key: Optional[str] = None
+    status: str = Field(
+        ...,
+        description="Execution status: pending | executed | failed",
+    )
+
+    metadata: Dict[str, Any] = {}

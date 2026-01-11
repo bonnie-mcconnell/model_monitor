@@ -18,10 +18,11 @@ class DecisionExecutor:
 
     Responsibilities:
     - enforce concurrency rules
-    - gather execution context
+    - enforce idempotency
+    - manage execution state transitions
     - delegate side effects to ModelActionExecutor
 
-    Never implements business logic directly.
+    Owns execution correctness.
     """
 
     VALID_ACTIONS = {"none", "reject", "retrain", "promote", "rollback"}
@@ -31,10 +32,12 @@ class DecisionExecutor:
         *,
         retrain_buffer: RetrainEvidenceBuffer,
         action_executor: ModelActionExecutor,
+        snapshot_store,
         min_f1_improvement: float,
     ) -> None:
         self._retrain_buffer = retrain_buffer
         self._executor = action_executor
+        self._snapshot_store = snapshot_store
         self._min_f1_improvement = min_f1_improvement
         self._retrain_lock = asyncio.Lock()
 
@@ -53,7 +56,7 @@ class DecisionExecutor:
             return
 
         if action is ModelAction.RETRAIN:
-            await self._handle_retrain()
+            await self._handle_retrain(snapshot)
 
         elif action is ModelAction.PROMOTE:
             await asyncio.to_thread(
@@ -66,10 +69,10 @@ class DecisionExecutor:
             await asyncio.to_thread(
                 self._executor.execute,
                 action=action,
-                context={},  # executor decides rollback target
+                context={},
             )
 
-    async def _handle_retrain(self) -> None:
+    async def _handle_retrain(self, snapshot: DecisionSnapshot) -> None:
         if not self._retrain_buffer.ready():
             log.info("Retrain skipped: insufficient evidence")
             return
@@ -83,13 +86,30 @@ class DecisionExecutor:
             if df.empty:
                 return
 
-            log.info("Starting retrain job (samples=%d)", len(df))
+            retrain_key = self._retrain_buffer.retrain_key(df)
 
-            await asyncio.to_thread(
-                self._executor.execute,
-                action=ModelAction.RETRAIN,
-                context={
-                    "retrain_df": df,
-                    "min_f1_improvement": self._min_f1_improvement,
-                },
-            )
+            if self._snapshot_store.seen_retrain_key(retrain_key):
+                log.info("Retrain skipped (idempotent): key=%s", retrain_key)
+                return
+
+            snapshot.retrain_key = retrain_key
+            snapshot.status = "pending"
+            self._snapshot_store.save(snapshot)
+
+            try:
+                await asyncio.to_thread(
+                    self._executor.execute,
+                    action=ModelAction.RETRAIN,
+                    context={
+                        "retrain_df": df,
+                        "min_f1_improvement": self._min_f1_improvement,
+                    },
+                )
+                snapshot.status = "executed"
+
+            except Exception:
+                snapshot.status = "failed"
+                raise
+
+            finally:
+                self._snapshot_store.save(snapshot)

@@ -11,12 +11,15 @@ class DecisionHistory:
     """
     In-memory rolling decision history.
 
-    - Maintains a bounded in-memory buffer for fast access
-    - Optionally mirrors decisions to persistent storage
-    - Serves as the single source of truth for recent actions
-    
-    DecisionHistory is authoritative for *recent* decisions.
-    Persistent storage is for audit & analytics only.
+    Responsibilities:
+    - Maintain bounded recent-decision buffer
+    - Optionally persist decisions for audit/analytics
+    - Provide recent action context to DecisionEngine
+
+    NOT responsible for:
+    - execution state
+    - idempotency
+    - crash recovery
     """
 
     def __init__(
@@ -38,7 +41,7 @@ class DecisionHistory:
         model_version: str | None = None,
     ) -> None:
         """
-        Record a decision in memory and (optionally) persistent storage.
+        Record a decision in memory and optionally persist it.
         """
         self._decisions.append(decision)
 
@@ -55,9 +58,6 @@ class DecisionHistory:
     def recent_actions(self, limit: Optional[int] = None) -> list[DecisionType]:
         """
         Return recent decision actions (most recent last).
-
-        Used by decision engines to reason about action history
-        and prevent oscillations.
         """
         decisions = (
             list(self._decisions)
