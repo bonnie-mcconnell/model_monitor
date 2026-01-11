@@ -17,13 +17,15 @@ class DecisionExecutor:
     Executes side-effectful consequences of decisions.
 
     Responsibilities:
-    - retraining
+    - retraining (may auto-promote)
     - promotion
     - rollback
 
     ASYNC ONLY.
     Never blocks aggregation or decision logic.
     """
+
+    VALID_ACTIONS = {"none", "retrain", "promote", "rollback", "reject"}
 
     def __init__(
         self,
@@ -41,10 +43,7 @@ class DecisionExecutor:
         decision: Decision,
         snapshot: DecisionSnapshot,
     ) -> None:
-        # snapshot intentionally unused for now (future audit / explainability hook)
-        _ = snapshot
-
-        if decision.action not in {"none", "retrain", "promote", "rollback", "reject"}:
+        if decision.action not in self.VALID_ACTIONS:
             raise ValueError(f"Unknown decision action: {decision.action}")
 
         if decision.action == "retrain":
@@ -57,10 +56,6 @@ class DecisionExecutor:
             await self._handle_rollback()
 
         # "reject" and "none" have no side effects
-
-    # ------------------------------------------------------------------
-    # Action handlers
-    # ------------------------------------------------------------------
 
     async def _handle_retrain(self) -> None:
         if not self._retrain_buffer.ready():
@@ -81,8 +76,6 @@ class DecisionExecutor:
             except FileNotFoundError:
                 current_model = None
                 log.info("No active model found; training baseline model")
-
-            log.info("Starting retrain job (samples=%d)", len(df))
 
             result = await asyncio.to_thread(
                 self._retrain_pipeline.run,
@@ -111,7 +104,7 @@ class DecisionExecutor:
                 )
 
     async def _handle_promote(self) -> None:
-        log.info("Manually promoting existing candidate model")
+        log.info("Promoting existing candidate model")
         model_store.promote_candidate()
 
     async def _handle_rollback(self) -> None:

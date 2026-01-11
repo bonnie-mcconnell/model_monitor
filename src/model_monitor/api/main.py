@@ -1,27 +1,13 @@
 from __future__ import annotations
 
-import asyncio
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 
 from model_monitor.api import dashboard, health
-from model_monitor.monitoring.aggregation import start_aggregation_loop
+from model_monitor.api.startup import start_background_aggregation_loop
 
+app = FastAPI(title="Model Monitor")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    task = asyncio.create_task(start_aggregation_loop())
-    try:
-        yield
-    finally:
-        task.cancel()
-
-
-app = FastAPI(
-    title="Model Monitor",
-    lifespan=lifespan,
-)
+start_background_aggregation_loop()
 
 app.include_router(health.router)
 app.include_router(dashboard.router)

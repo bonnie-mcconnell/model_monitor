@@ -11,9 +11,13 @@ class DecisionEngine:
     Converts monitoring signals into operational decisions.
 
     POLICY ONLY:
-    - no I/O
-    - no persistence
-    - no direct model mutation
+    - No I/O
+    - No persistence
+    - No direct model mutation
+
+    NOTE:
+    This engine maintains minimal ephemeral state (retrain cooldown tracking)
+    and is intended to be short-lived or scoped per execution context.
     """
 
     def __init__(self, config: AppConfig):
@@ -30,18 +34,8 @@ class DecisionEngine:
         drift_score: float,
         recent_actions: Sequence[DecisionType] | None = None,
     ) -> Decision:
-        """
-        Decision priority (top → bottom):
-
-        1. Severe drift → reject
-        2. Catastrophic regression → rollback
-        3. Sustained degradation → retrain
-        4. Long-term stability → promote
-        5. Otherwise → none
-        """
-
         # -----------------------------
-        # Invariants/guardrails
+        # Guardrails
         # -----------------------------
         assert 0.0 <= trust_score <= 1.0, "trust_score must be in [0,1]"
         assert f1 >= 0.0, "f1 must be non-negative"
@@ -49,7 +43,9 @@ class DecisionEngine:
 
         f1_drop = f1_baseline - f1
 
-        # Hard drift guardrail
+        # -----------------------------
+        # 1. Severe drift → reject
+        # -----------------------------
         if drift_score >= self.cfg.drift.psi_threshold:
             return Decision(
                 action="reject",
@@ -61,7 +57,9 @@ class DecisionEngine:
                 },
             )
 
-        # Catastrophic regression
+        # -----------------------------
+        # 2. Catastrophic regression → rollback
+        # -----------------------------
         if f1_drop >= self.cfg.rollback.max_f1_drop:
             return Decision(
                 action="rollback",
@@ -74,8 +72,10 @@ class DecisionEngine:
                 },
             )
 
-        # Sustained degradation
-        if f1_drop >= self.cfg.retrain.min_f1_gain:
+        # -----------------------------
+        # 3. Sustained degradation → retrain
+        # -----------------------------
+        if f1_drop >= self.cfg.retrain.min_f1_drop:
             if self._last_retrain_batch is not None:
                 since_last = batch_index - self._last_retrain_batch
                 if since_last < self.cfg.retrain.cooldown_batches:
@@ -100,7 +100,9 @@ class DecisionEngine:
                 },
             )
 
-        # Promotion
+        # -----------------------------
+        # 4. Long-term stability → promote
+        # -----------------------------
         if recent_actions is not None:
             n = self.cfg.retrain.min_stable_batches
             if len(recent_actions) >= n and all(a == "none" for a in recent_actions[-n:]):
@@ -110,7 +112,9 @@ class DecisionEngine:
                     metadata={"stable_batches": n},
                 )
 
-        # Stable
+        # -----------------------------
+        # 5. Default → none
+        # -----------------------------
         return Decision(
             action="none",
             reason="System operating within thresholds",
