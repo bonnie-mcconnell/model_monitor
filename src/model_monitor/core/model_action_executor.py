@@ -38,6 +38,15 @@ class ModelActionExecutor:
         action: ModelAction,
         context: dict[str, Any],
     ) -> Optional[str]:
+        recent = self.decision_store.tail(limit=20)
+
+        if any(
+            r.action == action.value
+            and r.model_version == self.store.get_active_version()
+            for r in recent
+        ):
+            return None
+    
         try:
             return self._execute_internal(action=action, context=context)
 
@@ -53,6 +62,8 @@ class ModelActionExecutor:
                 model_version=self.store.get_active_version(),
             )
             raise
+
+        
 
     # --------------------------------------------------
 
