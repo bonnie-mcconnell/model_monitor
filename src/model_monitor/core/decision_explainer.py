@@ -10,12 +10,7 @@ from model_monitor.core.decision_snapshot import DecisionSnapshot
 @dataclass(frozen=True)
 class ExplainedDecision:
     """
-    Human-readable, structured explanation for a decision.
-
-    Intended for:
-    - dashboards
-    - audits
-    - user-facing APIs
+    Human-readable explanation for a decision.
     """
 
     summary: str
@@ -25,12 +20,7 @@ class ExplainedDecision:
 
 class DecisionExplainer:
     """
-    Derives explanations from decisions + snapshots.
-
-    This layer is:
-    - non-authoritative
-    - presentation-focused
-    - side-effect free
+    Presentation-only explanation layer.
     """
 
     def explain(
@@ -41,25 +31,17 @@ class DecisionExplainer:
     ) -> ExplainedDecision:
         action = decision.action
 
-        if action == "reject":
-            rule = "severe_drift"
-        elif action == "rollback":
-            rule = "catastrophic_regression"
-        elif action == "retrain":
-            rule = "sustained_degradation"
-        elif action == "promote":
-            rule = "stability_promotion"
-        else:
-            rule = "within_thresholds"
+        rule_map = {
+            "reject": "severe_drift",
+            "rollback": "catastrophic_regression",
+            "retrain": "sustained_degradation",
+            "promote": "stability_promotion",
+        }
+
+        rule = rule_map.get(action, "within_thresholds")
 
         return ExplainedDecision(
             summary=decision.reason,
             rule_triggered=rule,
-            contributing_factors={
-                "trust_score": snapshot.trust_score,
-                "f1": snapshot.f1,
-                "f1_baseline": snapshot.f1_baseline,
-                "drift_score": snapshot.drift_score,
-                "batch_index": snapshot.batch_index,
-            },
+            contributing_factors=dict(decision.metadata),
         )

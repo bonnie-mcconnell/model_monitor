@@ -74,9 +74,9 @@ def aggregate_once(
 
         summary = _aggregate_records(window, records)
 
-        # -----------------------------
+        # ---------------------------------
         # Retrain evidence accumulation
-        # -----------------------------
+        # ---------------------------------
         retrain_buffer.add_summary(
             accuracy=summary.avg_accuracy,
             f1=summary.avg_f1,
@@ -85,9 +85,9 @@ def aggregate_once(
             timestamp=summary.computed_at,
         )
 
-        # -----------------------------
+        # ---------------------------------
         # Persist aggregated metrics
-        # -----------------------------
+        # ---------------------------------
         summary_store.upsert(
             window=window,
             n_batches=summary.n_batches,
@@ -109,9 +109,9 @@ def aggregate_once(
             avg_latency_ms=summary.avg_latency_ms,
         )
 
-        # -----------------------------
+        # ---------------------------------
         # Decision policy evaluation
-        # -----------------------------
+        # ---------------------------------
         decision = decision_engine.decide(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
@@ -121,9 +121,9 @@ def aggregate_once(
             recent_actions=None,
         )
 
-        # -----------------------------
-        # Decision snapshot (execution state)
-        # -----------------------------
+        # ---------------------------------
+        # Decision snapshot (execution envelope)
+        # ---------------------------------
         snapshot = DecisionSnapshot(
             decision_id=str(uuid.uuid4()),
             action=decision.action,
@@ -136,9 +136,9 @@ def aggregate_once(
             },
         )
 
-        # -----------------------------
+        # ---------------------------------
         # Async execution (fire-and-forget)
-        # -----------------------------
+        # ---------------------------------
         asyncio.create_task(
             decision_executor.execute(
                 decision=decision,
@@ -146,9 +146,9 @@ def aggregate_once(
             )
         )
 
-        # -----------------------------
+        # ---------------------------------
         # Alerting
-        # -----------------------------
+        # ---------------------------------
         check_alerts(window, {"trust_score": summary.trust_score})
 
 
@@ -176,7 +176,6 @@ async def start_aggregation_loop(
     decision_executor = DecisionExecutor(
         retrain_buffer=retrain_buffer,
         action_executor=action_executor,
-        snapshot_store=None,  # snapshots are ephemeral for now
         min_f1_improvement=cfg.retrain.min_f1_gain,
     )
 
