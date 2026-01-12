@@ -1,29 +1,44 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any, Sequence
 
 from fastapi import APIRouter, Query, HTTPException
 
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.core.decisions import Decision, DecisionType
+from model_monitor.core.model_action_executor import ModelActionExecutor
+from model_monitor.core.decision_engine import DecisionEngine
+
+from model_monitor.config.settings import load_config
+
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.decision_store import DecisionStore
-from model_monitor.storage.models.metrics_summary_history import MetricsSummaryHistoryORM
-
+from model_monitor.storage.model_store import ModelStore
+from model_monitor.training.retrain_pipeline import RetrainPipeline
+from model_monitor.storage.models.metrics_summary_history import (
+    MetricsSummaryHistoryORM,
+)
+from model_monitor.core.model_actions import ModelAction
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
-
 # ---------------------------------------------------------------------
-# Stores
+# Stores & services (singleton per process)
 # ---------------------------------------------------------------------
 
 metrics_store = MetricsStore()
 summary_store = MetricsSummaryStore()
 decision_store = DecisionStore()
+model_store = ModelStore()
+retrain_pipeline = RetrainPipeline()
 
+# Load app config once
+app_config = load_config()
+
+# Decision policy engine (pure logic)
+decision_engine = DecisionEngine(config=app_config)
 
 # ---------------------------------------------------------------------
 # Metrics ingestion (internal / admin)
@@ -59,11 +74,15 @@ def write_metric(
     metrics_store.write(record)
 
     decision_store.record(
-        decision=Decision(action=action, reason=reason, metadata={})
+        decision=Decision(
+            action=action,
+            reason=reason,
+            metadata={},
+        ),
+        model_version=model_store.get_active_version(),
     )
 
     return {"status": "ok"}
-
 
 # ---------------------------------------------------------------------
 # Raw metrics access
@@ -112,7 +131,6 @@ def list_metrics(
             else None
         ),
     }
-
 
 # ---------------------------------------------------------------------
 # Aggregated metrics
@@ -166,7 +184,6 @@ def get_metrics_summary_history(
         ],
     }
 
-
 # ---------------------------------------------------------------------
 # Decisions
 # ---------------------------------------------------------------------
@@ -197,9 +214,25 @@ def get_decision_history(limit: int = Query(100, ge=1, le=1000)):
         for r in reversed(rows)
     ]
 
+# ---------------------------------------------------------------------
+# Decision simulation (NO side effects)
+# ---------------------------------------------------------------------
+
 @router.post("/decisions/simulate")
-def simulate_decision(payload: dict):
-    decision = decision_engine.decide(payload)
+def simulate_decision(payload: Dict[str, Any]):
+    """
+    Run full decision + execution pipeline in dry-run mode.
+    No side effects.
+    """
+
+    decision: Decision = decision_engine.decide(
+        batch_index=payload["batch_index"],
+        trust_score=payload["trust_score"],
+        f1=payload["f1"],
+        f1_baseline=payload["f1_baseline"],
+        drift_score=payload["drift_score"],
+        recent_actions=payload.get("recent_actions"),
+    )
 
     executor = ModelActionExecutor(
         model_store=model_store,
@@ -209,8 +242,8 @@ def simulate_decision(payload: dict):
     )
 
     executor.execute(
-        action=decision.action,
-        context=decision.context,
+        action=ModelAction.from_decision(decision.action),
+        context=payload,
     )
 
     return {
@@ -218,17 +251,3 @@ def simulate_decision(payload: dict):
         "action": decision.action,
         "reason": decision.reason,
     }
-
-
-# ---------------------------------------------------------------------
-# Model lifecycle (roadmap)
-# ---------------------------------------------------------------------
-
-@router.post("/models/{model_version}/promote")
-def promote_model(model_version: str):
-    raise HTTPException(status_code=501, detail="Model promotion not implemented")
-
-
-@router.post("/models/{model_version}/rollback")
-def rollback_model(model_version: str):
-    raise HTTPException(status_code=501, detail="Model rollback not implemented")
