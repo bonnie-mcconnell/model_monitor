@@ -13,6 +13,11 @@ from model_monitor.monitoring.trust_score import (
 )
 from model_monitor.monitoring.alerting import check_alerts
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
+from model_monitor.monitoring.invariants import (
+    assert_bounded,
+    assert_monotonic,
+    validate_trust_components,
+)
 
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decision_snapshot import DecisionSnapshot
@@ -74,9 +79,16 @@ def aggregate_once(
 
         summary = _aggregate_records(window, records)
 
-        # ---------------------------------
-        # Retrain evidence accumulation
-        # ---------------------------------
+        # -------------------------
+        # Invariants
+        # -------------------------
+        assert_monotonic("n_batches", summary.n_batches)
+        assert_bounded("trust_score", summary.trust_score, lo=0.0, hi=1.0)
+        validate_trust_components(dict(summary.trust_components))
+
+        # -------------------------
+        # Retrain evidence
+        # -------------------------
         retrain_buffer.add_summary(
             accuracy=summary.avg_accuracy,
             f1=summary.avg_f1,
@@ -85,9 +97,9 @@ def aggregate_once(
             timestamp=summary.computed_at,
         )
 
-        # ---------------------------------
-        # Persist aggregated metrics
-        # ---------------------------------
+        # -------------------------
+        # Persistence
+        # -------------------------
         summary_store.upsert(
             window=window,
             n_batches=summary.n_batches,
@@ -109,21 +121,18 @@ def aggregate_once(
             avg_latency_ms=summary.avg_latency_ms,
         )
 
-        # ---------------------------------
-        # Decision policy evaluation
-        # ---------------------------------
+        # -------------------------
+        # Decision
+        # -------------------------
         decision = decision_engine.decide(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
             f1=summary.avg_f1,
-            f1_baseline=summary.avg_f1,  # TODO: wire true baseline
+            f1_baseline=summary.avg_f1,  # TODO: baseline wiring
             drift_score=summary.avg_drift_score,
             recent_actions=None,
         )
 
-        # ---------------------------------
-        # Decision snapshot (execution envelope)
-        # ---------------------------------
         snapshot = DecisionSnapshot(
             decision_id=str(uuid.uuid4()),
             action=decision.action,
@@ -136,9 +145,6 @@ def aggregate_once(
             },
         )
 
-        # ---------------------------------
-        # Async execution (fire-and-forget)
-        # ---------------------------------
         asyncio.create_task(
             decision_executor.execute(
                 decision=decision,
@@ -146,9 +152,6 @@ def aggregate_once(
             )
         )
 
-        # ---------------------------------
-        # Alerting
-        # ---------------------------------
         check_alerts(window, {"trust_score": summary.trust_score})
 
 
@@ -164,7 +167,6 @@ async def start_aggregation_loop(
     cfg = load_config()
 
     decision_engine = DecisionEngine(cfg)
-
     decision_store = DecisionStore()
 
     action_executor = ModelActionExecutor(

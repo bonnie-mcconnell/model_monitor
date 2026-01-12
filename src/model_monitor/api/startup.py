@@ -9,6 +9,7 @@ from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.metrics_summary_history_store import (
     MetricsSummaryHistoryStore,
 )
+from model_monitor.storage.model_store import ModelStore
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +19,7 @@ def start_background_aggregation_loop(
     metrics_store: Optional[MetricsStore] = None,
     summary_store: Optional[MetricsSummaryStore] = None,
     history_store: Optional[MetricsSummaryHistoryStore] = None,
+    model_store: Optional[ModelStore] = None,
     poll_interval: int = 60,
 ) -> None:
     """
@@ -28,6 +30,7 @@ def start_background_aggregation_loop(
     metrics_store = metrics_store or MetricsStore()
     summary_store = summary_store or MetricsSummaryStore()
     history_store = history_store or MetricsSummaryHistoryStore()
+    model_store = model_store or ModelStore()
     retrain_buffer = RetrainEvidenceBuffer(min_samples=5)
 
     async def _runner() -> None:
@@ -40,6 +43,7 @@ def start_background_aggregation_loop(
             summary_store=summary_store,
             history_store=history_store,
             retrain_buffer=retrain_buffer,
+            model_store=model_store,
             poll_interval=poll_interval,
         )
 
