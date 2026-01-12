@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -22,8 +23,11 @@ from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.metrics_summary_history_store import (
     MetricsSummaryHistoryStore,
 )
-from model_monitor.config.settings import load_config
+from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline
+from model_monitor.core.model_action_executor import ModelActionExecutor
+from model_monitor.config.settings import load_config
 
 
 AGGREGATION_WINDOWS: dict[str, int] = {
@@ -70,6 +74,9 @@ def aggregate_once(
 
         summary = _aggregate_records(window, records)
 
+        # -----------------------------
+        # Retrain evidence accumulation
+        # -----------------------------
         retrain_buffer.add_summary(
             accuracy=summary.avg_accuracy,
             f1=summary.avg_f1,
@@ -78,6 +85,9 @@ def aggregate_once(
             timestamp=summary.computed_at,
         )
 
+        # -----------------------------
+        # Persist aggregated metrics
+        # -----------------------------
         summary_store.upsert(
             window=window,
             n_batches=summary.n_batches,
@@ -99,25 +109,36 @@ def aggregate_once(
             avg_latency_ms=summary.avg_latency_ms,
         )
 
+        # -----------------------------
+        # Decision policy evaluation
+        # -----------------------------
         decision = decision_engine.decide(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
             f1=summary.avg_f1,
-            f1_baseline=summary.avg_f1,  # placeholder baseline hook
+            f1_baseline=summary.avg_f1,  # TODO: wire true baseline
             drift_score=summary.avg_drift_score,
             recent_actions=None,
-        )
-        # TODO
-        snapshot = DecisionSnapshot(
-            batch_index=summary.n_batches,
-            trust_score=summary.trust_score,
-            f1=summary.avg_f1,
-            f1_baseline=summary.avg_f1,
-            drift_score=summary.avg_drift_score,
-            recent_actions=None,
-            captured_at=summary.computed_at,
         )
 
+        # -----------------------------
+        # Decision snapshot (execution state)
+        # -----------------------------
+        snapshot = DecisionSnapshot(
+            decision_id=str(uuid.uuid4()),
+            action=decision.action,
+            timestamp=summary.computed_at,
+            status="pending",
+            metadata={
+                **decision.metadata,
+                "window": window,
+                "n_batches": summary.n_batches,
+            },
+        )
+
+        # -----------------------------
+        # Async execution (fire-and-forget)
+        # -----------------------------
         asyncio.create_task(
             decision_executor.execute(
                 decision=decision,
@@ -125,6 +146,9 @@ def aggregate_once(
             )
         )
 
+        # -----------------------------
+        # Alerting
+        # -----------------------------
         check_alerts(window, {"trust_score": summary.trust_score})
 
 
@@ -134,13 +158,26 @@ async def start_aggregation_loop(
     summary_store: MetricsSummaryStore,
     history_store: MetricsSummaryHistoryStore,
     retrain_buffer: RetrainEvidenceBuffer,
+    model_store: ModelStore,
     poll_interval: int = 60,
 ) -> None:
     cfg = load_config()
-    engine = DecisionEngine(cfg)
-    executor = DecisionExecutor(
-        retrain_buffer=retrain_buffer,
+
+    decision_engine = DecisionEngine(cfg)
+
+    decision_store = DecisionStore()
+
+    action_executor = ModelActionExecutor(
+        model_store=model_store,
         retrain_pipeline=RetrainPipeline(),
+        decision_store=decision_store,
+    )
+
+    decision_executor = DecisionExecutor(
+        retrain_buffer=retrain_buffer,
+        action_executor=action_executor,
+        snapshot_store=None,  # snapshots are ephemeral for now
+        min_f1_improvement=cfg.retrain.min_f1_gain,
     )
 
     while True:
@@ -149,8 +186,8 @@ async def start_aggregation_loop(
             summary_store=summary_store,
             history_store=history_store,
             retrain_buffer=retrain_buffer,
-            decision_engine=engine,
-            decision_executor=executor,
+            decision_engine=decision_engine,
+            decision_executor=decision_executor,
         )
         await asyncio.sleep(poll_interval)
 
