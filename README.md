@@ -707,3 +707,56 @@ The core architecture already supports these.
 This repo is not meant to be flashy.
 
 It is meant to look like something that already survived its first on‑call rotation.
+
+
+---
+
+### Core Design Principles
+
+#### 1. Separation of Policy and Execution
+- `DecisionEngine` is **pure** and deterministic
+- `DecisionExecutor` handles concurrency, retries, and execution state
+- Side effects are isolated in `DefaultModelActionExecutor`
+
+This makes the system testable and auditable.
+
+---
+
+#### 2. Explicit Invariants
+System invariants are enforced at aggregation boundaries:
+- metrics are finite
+- trust scores are bounded
+- batch counts are monotonic
+
+Invariant violations fail fast and loudly, preventing silent corruption.
+
+---
+
+#### 3. Idempotent Retraining
+Retraining decisions are guarded by:
+- evidence thresholds
+- retrain keys
+- async execution locks
+- optional dry-run mode
+
+This prevents duplicate or runaway retraining jobs.
+
+---
+
+#### 4. Auditability
+All operational decisions are:
+- recorded in-memory for short-term context
+- persisted via an append-only decision log
+- queryable via analytics interfaces
+
+No decision is executed without being explainable after the fact.
+
+---
+
+#### 5. Production-First Testing
+Tests validate **contracts**, not implementations:
+- retrain idempotency
+- dry-run behavior
+- snapshot state transitions
+
+This keeps tests stable while allowing internal refactors.

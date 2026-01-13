@@ -9,7 +9,7 @@ from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline, RetrainResult
 
 
-class ModelActionExecutor:
+class DefaultModelActionExecutor:
     """
     Executes model lifecycle actions in a crash-safe manner.
 
@@ -26,7 +26,7 @@ class ModelActionExecutor:
         retrain_pipeline: RetrainPipeline,
         decision_store: DecisionStore,
         dry_run: bool = False,
-    ):
+    ) -> None:
         self.store = model_store
         self.retrain_pipeline = retrain_pipeline
         self.decision_store = decision_store
@@ -46,7 +46,7 @@ class ModelActionExecutor:
             for r in recent
         ):
             return None
-    
+
         try:
             return self._execute_internal(action=action, context=context)
 
@@ -54,7 +54,7 @@ class ModelActionExecutor:
             failed_decision = Decision(
                 action="system_error",
                 reason=f"executor failure: {type(exc).__name__}",
-                metadata={},  # system failures do not use model decision metadata
+                metadata={},
             )
 
             self.decision_store.record(
@@ -62,8 +62,6 @@ class ModelActionExecutor:
                 model_version=self.store.get_active_version(),
             )
             raise
-
-        
 
     # --------------------------------------------------
 

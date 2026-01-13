@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query, HTTPException
 from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.core.decision_engine import DecisionEngine
-from model_monitor.core.model_action_executor import ModelActionExecutor
+from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.config.settings import load_config
 
@@ -237,7 +237,7 @@ def simulate_decision():
 
     action = decision_to_model_action(decision.action)
 
-    executor = ModelActionExecutor(
+    executor = DefaultModelActionExecutor(
         model_store=model_store,
         retrain_pipeline=retrain_pipeline,
         decision_store=decision_store,
@@ -268,7 +268,7 @@ def execute_decision():
     decision_action = parse_decision_type(decision.action)
     action = decision_to_model_action(decision_action)
 
-    executor = ModelActionExecutor(
+    executor = DefaultModelActionExecutor(
         model_store=model_store,
         retrain_pipeline=retrain_pipeline,
         decision_store=decision_store,

@@ -32,7 +32,7 @@ from model_monitor.storage.metrics_summary_history_store import (
 from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline
-from model_monitor.core.model_action_executor import ModelActionExecutor
+from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
 from model_monitor.config.settings import load_config
 
 
@@ -179,7 +179,7 @@ async def start_aggregation_loop(
     decision_engine = DecisionEngine(cfg)
     decision_store = DecisionStore()
 
-    action_executor = ModelActionExecutor(
+    action_executor = DefaultModelActionExecutor(
         model_store=model_store,
         retrain_pipeline=RetrainPipeline(),
         decision_store=decision_store,
