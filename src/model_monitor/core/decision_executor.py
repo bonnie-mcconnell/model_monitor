@@ -128,3 +128,4 @@ class DecisionExecutor:
             except Exception:
                 snapshot.status = "failed"
                 raise
+

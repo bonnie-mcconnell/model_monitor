@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import cast
 import uuid
 from dataclasses import dataclass
 from typing import Sequence
@@ -84,7 +85,10 @@ def aggregate_once(
         # -------------------------
         assert_monotonic("n_batches", summary.n_batches)
         assert_bounded("trust_score", summary.trust_score, lo=0.0, hi=1.0)
-        validate_trust_components(dict(summary.trust_components))
+        validate_trust_components(
+            cast(dict[str, float], summary.trust_components)
+        )
+
 
         # -------------------------
         # Retrain evidence
