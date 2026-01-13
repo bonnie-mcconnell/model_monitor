@@ -1,3 +1,5 @@
+# TODO: any redundant code, clean up
+
 from __future__ import annotations
 
 import json
