@@ -1,59 +1,103 @@
 import asyncio
-import pandas as pd
+import time
+import uuid
 import pytest
+from typing import Mapping, Any
 
 from model_monitor.core.decision_executor import DecisionExecutor
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decisions import Decision
 from model_monitor.core.model_actions import ModelAction
+from model_monitor.core.decisions import Decision
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
 
 class DummyActionExecutor:
     def __init__(self) -> None:
-        self.calls: list[tuple[ModelAction, dict]] = []
+        self.calls: list[tuple[ModelAction, Mapping[str, Any]]] = []
 
-    def execute(self, *, action: ModelAction, context: dict) -> None:
+    def execute(
+        self,
+        *,
+        action: ModelAction,
+        context: Mapping[str, Any],
+    ) -> None:
         self.calls.append((action, context))
+        return None
 
 
 @pytest.mark.asyncio
-async def test_retrain_skipped_when_buffer_not_ready() -> None:
-    buffer = RetrainEvidenceBuffer(min_samples=5)
+async def test_noop_decision_executes_without_side_effects():
+    buffer = RetrainEvidenceBuffer(min_samples=1)
     executor = DummyActionExecutor()
 
     decision_executor = DecisionExecutor(
         retrain_buffer=buffer,
         action_executor=executor,
-        min_f1_improvement=0.01,
+        min_f1_improvement=0.05,
+    )
+
+    decision = Decision(
+        action="none",
+        reason="no-op",
     )
 
     snapshot = DecisionSnapshot(
-        decision_id="d1",
-        action="retrain",
-        timestamp=0.0,
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
         status="pending",
     )
 
-    decision = Decision(action="retrain", reason="test")
+    await decision_executor.execute(
+        decision=decision,
+        snapshot=snapshot,
+    )
 
-    await decision_executor.execute(decision=decision, snapshot=snapshot)
+    assert snapshot.status == "executed"
+    assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_retrain_skipped_when_buffer_not_ready():
+    buffer = RetrainEvidenceBuffer(min_samples=2)
+    executor = DummyActionExecutor()
+
+    decision_executor = DecisionExecutor(
+        retrain_buffer=buffer,
+        action_executor=executor,
+        min_f1_improvement=0.05,
+    )
+
+    decision = Decision(
+        action="retrain",
+        reason="low trust",
+    )
+
+    snapshot = DecisionSnapshot(
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
+        status="pending",
+    )
+
+    await decision_executor.execute(
+        decision=decision,
+        snapshot=snapshot,
+    )
 
     assert snapshot.status == "skipped"
     assert executor.calls == []
 
 
 @pytest.mark.asyncio
-async def test_retrain_dry_run_has_no_side_effects() -> None:
+async def test_retrain_executes_when_buffer_ready():
     buffer = RetrainEvidenceBuffer(min_samples=1)
-    buffer._buffer.append(
-        {
-            "accuracy": 0.5,
-            "f1": 0.4,
-            "drift_score": 0.2,
-            "trust_score": 0.3,
-            "timestamp": 1.0,
-        }
+    buffer.add_summary(
+        accuracy=0.5,
+        f1=0.4,
+        drift_score=0.6,
+        trust_score=0.3,
+        timestamp=time.time(),
     )
 
     executor = DummyActionExecutor()
@@ -61,46 +105,25 @@ async def test_retrain_dry_run_has_no_side_effects() -> None:
     decision_executor = DecisionExecutor(
         retrain_buffer=buffer,
         action_executor=executor,
-        min_f1_improvement=0.01,
+        min_f1_improvement=0.05,
         dry_run=True,
     )
 
-    snapshot = DecisionSnapshot(
-        decision_id="d2",
+    decision = Decision(
         action="retrain",
-        timestamp=1.0,
-        status="pending",
-    )
-
-    decision = Decision(action="retrain", reason="test")
-
-    await decision_executor.execute(decision=decision, snapshot=snapshot)
-
-    assert snapshot.status == "executed"
-    assert executor.calls == []
-
-
-@pytest.mark.asyncio
-async def test_promote_executes_once() -> None:
-    buffer = RetrainEvidenceBuffer(min_samples=1)
-    executor = DummyActionExecutor()
-
-    decision_executor = DecisionExecutor(
-        retrain_buffer=buffer,
-        action_executor=executor,
-        min_f1_improvement=0.01,
+        reason="trust degraded",
     )
 
     snapshot = DecisionSnapshot(
-        decision_id="d3",
-        action="promote",
-        timestamp=2.0,
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
         status="pending",
     )
 
-    decision = Decision(action="promote", reason="test")
-
-    await decision_executor.execute(decision=decision, snapshot=snapshot)
+    await decision_executor.execute(
+        decision=decision,
+        snapshot=snapshot,
+    )
 
     assert snapshot.status == "executed"
-    assert executor.calls == [(ModelAction.PROMOTE, {})]

@@ -6,7 +6,9 @@ import logging
 from model_monitor.core.decisions import Decision
 from model_monitor.core.decision_snapshot import DecisionSnapshot
 from model_monitor.core.model_actions import ModelAction
-from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
+from model_monitor.core.model_action_executor_protocol import (
+    ModelActionExecutorProtocol,
+)
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
 log = logging.getLogger(__name__)
@@ -32,7 +34,7 @@ class DecisionExecutor:
         self,
         *,
         retrain_buffer: RetrainEvidenceBuffer,
-        action_executor: DefaultModelActionExecutor,
+        action_executor: ModelActionExecutorProtocol,
         min_f1_improvement: float,
         dry_run: bool = False,
     ) -> None:

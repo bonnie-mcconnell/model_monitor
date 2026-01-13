@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import pandas as pd
 from typing import Any
 
+from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.train import train_model
 from model_monitor.training.evaluation import validate_model
 from model_monitor.training.promotion import PromotionResult, compare_models
@@ -25,12 +26,14 @@ class RetrainPipeline:
     - Evaluate candidate vs current
     - Decide promotion eligibility
     """
+    def __init__(self, *, model_store: ModelStore):
+        self.model_store = model_store
 
     def run(
         self,
-        *,
         retrain_df: pd.DataFrame,
-        current_model: Any | None,
+        current_model: Any | None = None,
+        *,
         min_f1_improvement: float,
     ) -> RetrainResult:
         if retrain_df.empty:

@@ -28,4 +28,4 @@ class DecisionSnapshot(BaseModel):
         description="Execution status: pending | executed | failed",
     )
 
-    metadata: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = Field(default_factory=dict)

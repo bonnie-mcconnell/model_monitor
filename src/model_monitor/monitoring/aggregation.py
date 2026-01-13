@@ -181,7 +181,7 @@ async def start_aggregation_loop(
 
     action_executor = DefaultModelActionExecutor(
         model_store=model_store,
-        retrain_pipeline=RetrainPipeline(),
+        retrain_pipeline=RetrainPipeline(model_store=model_store),
         decision_store=decision_store,
     )
 

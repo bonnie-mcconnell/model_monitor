@@ -1,8 +1,15 @@
-from dataclasses import dataclass
-from typing import Literal, TypedDict
+from dataclasses import dataclass, field
+from typing import Literal, TypedDict, cast
 
 
-DecisionType = Literal["none", "retrain", "promote", "rollback", "reject", "system_error"]
+DecisionType = Literal[
+    "none",
+    "retrain",
+    "promote",
+    "rollback",
+    "reject",
+    "system_error",
+]
 
 
 class DecisionMetadata(TypedDict, total=False):
@@ -16,11 +23,10 @@ class DecisionMetadata(TypedDict, total=False):
     cooldown_batches: int
     batches_since_last_retrain: int
 
-    # Diagnostic/gating metadata
+    # Diagnostic / gating metadata
     has_labels: bool
     has_baseline: bool
     n_samples: int
-
 
 
 @dataclass(frozen=True)
@@ -33,4 +39,6 @@ class Decision:
 
     action: DecisionType
     reason: str
-    metadata: DecisionMetadata
+    metadata: DecisionMetadata = field(
+        default_factory=lambda: cast(DecisionMetadata, {})
+    )

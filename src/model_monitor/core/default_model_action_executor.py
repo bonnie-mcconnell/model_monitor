@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, Mapping
 
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.core.decisions import Decision
@@ -36,7 +36,7 @@ class DefaultModelActionExecutor:
         self,
         *,
         action: ModelAction,
-        context: dict[str, Any],
+        context: Mapping[str, Any],
     ) -> Optional[str]:
         recent = self.decision_store.tail(limit=20)
 
@@ -69,7 +69,7 @@ class DefaultModelActionExecutor:
         self,
         *,
         action: ModelAction,
-        context: dict[str, Any],
+        context: Mapping[str, Any],
     ) -> Optional[str]:
 
         if action in {ModelAction.NONE, ModelAction.REJECT}:

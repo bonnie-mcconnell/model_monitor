@@ -18,6 +18,7 @@ def test_no_action_when_system_healthy(config):
         f1=0.90,
         f1_baseline=0.85,
         drift_score=0.01,
+        trust_score=1.0,
     )
 
     assert isinstance(decision, Decision)
@@ -32,6 +33,7 @@ def test_retrain_triggered_on_f1_drop(config):
         f1=0.80,
         f1_baseline=0.85,
         drift_score=0.01,
+        trust_score=1.0,
     )
 
     assert decision.action == "retrain"
@@ -47,6 +49,7 @@ def test_retrain_respects_cooldown(config):
         f1=0.80,
         f1_baseline=0.85,
         drift_score=0.01,
+        trust_score=1.0,
     )
 
     # Immediately again
@@ -55,6 +58,7 @@ def test_retrain_respects_cooldown(config):
         f1=0.79,
         f1_baseline=0.85,
         drift_score=0.01,
+        trust_score=1.0,    
     )
 
     assert decision.action == "none"
@@ -69,6 +73,7 @@ def test_reject_on_severe_drift(config):
         f1=0.90,
         f1_baseline=0.85,
         drift_score=config.drift.psi_threshold + 0.01,
+        trust_score=1.0,
     )
 
     assert decision.action == "reject"

@@ -65,7 +65,7 @@ metrics_store = MetricsStore()
 summary_store = MetricsSummaryStore()
 decision_store = DecisionStore()
 model_store = ModelStore()
-retrain_pipeline = RetrainPipeline()
+retrain_pipeline = RetrainPipeline(model_store=model_store)
 
 app_config = load_config()
 decision_engine = DecisionEngine(config=app_config)

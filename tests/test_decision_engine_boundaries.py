@@ -14,6 +14,7 @@ def test_retrain_vs_rollback_boundary():
         f1=baseline - (cfg.rollback.max_f1_drop - 0.01),
         f1_baseline=baseline,
         drift_score=0.0,
+        trust_score=1.0,
     )
     assert decision.action == "retrain"
 
@@ -23,5 +24,6 @@ def test_retrain_vs_rollback_boundary():
         f1=baseline - cfg.rollback.max_f1_drop,
         f1_baseline=baseline,
         drift_score=0.0,
+        trust_score=1.0,
     )
     assert decision.action == "rollback"
