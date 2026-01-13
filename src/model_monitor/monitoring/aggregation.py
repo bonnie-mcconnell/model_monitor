@@ -80,14 +80,20 @@ def aggregate_once(
 
         summary = _aggregate_records(window, records)
 
-        # -------------------------
-        # Invariants
-        # -------------------------
+        # ---------------------------------
+        # Aggregation invariants
+        # ---------------------------------
         assert_monotonic("n_batches", summary.n_batches)
-        assert_bounded("trust_score", summary.trust_score, lo=0.0, hi=1.0)
+
+        assert_bounded("avg_accuracy", summary.avg_accuracy, lo=0.0, hi=1.0)
+        assert_bounded("avg_f1", summary.avg_f1, lo=0.0, hi=1.0)
+        assert_bounded("avg_confidence", summary.avg_confidence, lo=0.0, hi=1.0)
+        assert_bounded("avg_drift_score", summary.avg_drift_score, lo=0.0, hi=1.0)
+
         validate_trust_components(
             cast(dict[str, float], summary.trust_components)
         )
+
 
 
         # -------------------------
