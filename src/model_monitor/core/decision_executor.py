@@ -1,7 +1,9 @@
+# src/model_monitor/core/decision_executor.py
 from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
 from model_monitor.core.decisions import Decision
 from model_monitor.core.decision_snapshot import DecisionSnapshot
@@ -23,9 +25,10 @@ class DecisionExecutor:
     - enforce retrain idempotency
     - manage execution state transitions
     - guard snapshot correctness
-    - delegate side effects to DefaultModelActionExecutor
 
-    Snapshots are ephemeral execution envelopes, NOT persisted state.
+    Explicitly does NOT:
+    - write metrics
+    - persist snapshots
     """
 
     VALID_ACTIONS = {"none", "reject", "retrain", "promote", "rollback"}
@@ -49,66 +52,59 @@ class DecisionExecutor:
         *,
         decision: Decision,
         snapshot: DecisionSnapshot,
+        context: dict[str, Any] | None = None,
     ) -> None:
         if decision.action not in self.VALID_ACTIONS:
             raise ValueError(f"Unknown decision action: {decision.action}")
 
         action = ModelAction(decision.action)
 
-        # -----------------------------------------
+        # ----------------------------
         # No-op decisions
-        # -----------------------------------------
+        # ----------------------------
         if action in {ModelAction.NONE, ModelAction.REJECT}:
             snapshot.status = "executed"
             return
 
-        # -----------------------------------------
+        # ----------------------------
         # Retrain path
-        # -----------------------------------------
+        # ----------------------------
         if action is ModelAction.RETRAIN:
             await self._handle_retrain(snapshot)
             return
 
-        # -----------------------------------------
+        # ----------------------------
         # Promote / rollback
-        # -----------------------------------------
+        # ----------------------------
         snapshot.status = "pending"
 
         if not self._dry_run:
             await asyncio.to_thread(
                 self._executor.execute,
                 action=action,
-                context={},
+                context=context or {},
             )
 
         snapshot.status = "executed"
 
     async def _handle_retrain(self, snapshot: DecisionSnapshot) -> None:
         if not self._retrain_buffer.ready():
-            log.info("Retrain skipped: insufficient evidence")
             snapshot.status = "skipped"
             return
 
         if self._retrain_lock.locked():
-            log.info("Retrain already in progress; skipping")
             snapshot.status = "skipped"
             return
 
         async with self._retrain_lock:
             df = self._retrain_buffer.consume()
-
             if df.empty:
-                log.info("Retrain skipped: buffer empty after consume")
                 snapshot.status = "skipped"
                 return
 
             retrain_key = self._retrain_buffer.retrain_key(df)
 
-            # -----------------------------------------
-            # Idempotency guard (within process)
-            # -----------------------------------------
             if snapshot.retrain_key == retrain_key:
-                log.info("Retrain skipped (idempotent): key=%s", retrain_key)
                 snapshot.status = "skipped"
                 return
 
@@ -126,8 +122,6 @@ class DecisionExecutor:
                         },
                     )
                 snapshot.status = "executed"
-
             except Exception:
                 snapshot.status = "failed"
                 raise
-

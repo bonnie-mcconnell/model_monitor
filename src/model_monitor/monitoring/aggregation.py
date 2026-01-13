@@ -1,3 +1,4 @@
+# TODO: remove metrics writes
 from __future__ import annotations
 
 import asyncio
@@ -159,8 +160,13 @@ def aggregate_once(
             decision_executor.execute(
                 decision=decision,
                 snapshot=snapshot,
+                context={
+                    "window": window,
+                    "n_batches": summary.n_batches,
+                },
             )
         )
+
 
         check_alerts(window, {"trust_score": summary.trust_score})
 
