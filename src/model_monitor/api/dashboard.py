@@ -1,13 +1,10 @@
-# TODO: remove metrics writes??
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Optional, Sequence
+from typing import Optional
 
 from fastapi import APIRouter, Query, HTTPException
 
-from model_monitor.core.decisions import Decision, DecisionType
-from model_monitor.monitoring.types import MetricRecord
+from model_monitor.core.decisions import DecisionType
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
 from model_monitor.core.model_actions import ModelAction
@@ -23,6 +20,7 @@ from model_monitor.storage.models.metrics_summary_history import (
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -48,14 +46,13 @@ def parse_decision_type(value: str) -> DecisionType:
 
 
 def decision_to_model_action(action: DecisionType) -> ModelAction:
-    mapping = {
+    return {
         "none": ModelAction.NONE,
         "retrain": ModelAction.RETRAIN,
         "promote": ModelAction.PROMOTE,
         "rollback": ModelAction.ROLLBACK,
         "reject": ModelAction.REJECT,
-    }
-    return mapping.get(action, ModelAction.NONE)
+    }.get(action, ModelAction.NONE)
 
 
 # ---------------------------------------------------------------------
@@ -71,54 +68,9 @@ retrain_pipeline = RetrainPipeline(model_store=model_store)
 app_config = load_config()
 decision_engine = DecisionEngine(config=app_config)
 
-# ---------------------------------------------------------------------
-# Metrics ingestion
-# ---------------------------------------------------------------------
-
-@router.post("/metrics")
-def write_metric(
-    batch_id: str,
-    n_samples: int,
-    accuracy: float,
-    f1: float,
-    avg_confidence: float,
-    drift_score: float,
-    decision_latency_ms: float,
-    action: str = Query("none"),
-    reason: str = "",
-):
-    decision_action = parse_decision_type(action)
-
-    record: MetricRecord = {
-        "timestamp": datetime.utcnow().timestamp(),
-        "batch_id": batch_id,
-        "n_samples": n_samples,
-        "accuracy": accuracy,
-        "f1": f1,
-        "avg_confidence": avg_confidence,
-        "drift_score": drift_score,
-        "decision_latency_ms": decision_latency_ms,
-        "action": decision_action,
-        "reason": reason,
-        "previous_model": None,
-        "new_model": None,
-    }
-
-    metrics_store.write(record)
-
-    decision_store.record(
-        decision=Decision(
-            action=decision_action,
-            reason=reason,
-            metadata={},
-        ),
-        model_version=model_store.get_active_version(),
-    )
-
-    return {"status": "ok"}
 
 # ---------------------------------------------------------------------
-# Metrics access
+# Metrics access (READ ONLY)
 # ---------------------------------------------------------------------
 
 @router.get("/metrics/tail")
@@ -142,11 +94,13 @@ def list_metrics(
     start_ts: Optional[float] = Query(None),
     end_ts: Optional[float] = Query(None),
 ):
-    cursor = None
-    if cursor_ts is not None and cursor_id is not None:
-        cursor = (cursor_ts, cursor_id)
+    cursor = (
+        (cursor_ts, cursor_id)
+        if cursor_ts is not None and cursor_id is not None
+        else None
+    )
 
-    typed_action: Optional[DecisionType] = (
+    typed_action = (
         parse_decision_type(action) if action is not None else None
     )
 
@@ -168,6 +122,7 @@ def list_metrics(
             else None
         ),
     }
+
 
 # ---------------------------------------------------------------------
 # Aggregated metrics
@@ -206,6 +161,7 @@ def get_metrics_summary_history(
         "items": [r.__dict__ for r in reversed(rows)],
     }
 
+
 # ---------------------------------------------------------------------
 # Decisions
 # ---------------------------------------------------------------------
@@ -215,17 +171,21 @@ def get_decision_history(limit: int = Query(100, ge=1, le=1000)):
     rows = decision_store.tail(limit)
     return [r.__dict__ for r in reversed(rows)]
 
+
 # ---------------------------------------------------------------------
 # Phase IV.1 — Decision simulation
 # ---------------------------------------------------------------------
 
 @router.post("/decisions/simulate")
 def simulate_decision():
-    recent_actions: list[DecisionType] = [
-        parse_decision_type(r.action)
-        for r in decision_store.tail(limit=10)
-    ]
+    recent_actions: list[DecisionType] = []
 
+    for row in decision_store.tail(limit=10):
+        try:
+            recent_actions.append(parse_decision_type(row.action))
+        except HTTPException:
+            # Ignore unknown/legacy actions safely
+            continue
 
     decision = decision_engine.decide(
         batch_index=0,
@@ -255,6 +215,7 @@ def simulate_decision():
         "dry_run": True,
     }
 
+
 # ---------------------------------------------------------------------
 # Phase IV.2 — REAL execution
 # ---------------------------------------------------------------------
@@ -266,8 +227,7 @@ def execute_decision():
         raise HTTPException(404, "No decision to execute")
 
     decision = rows[0]
-    decision_action = parse_decision_type(decision.action)
-    action = decision_to_model_action(decision_action)
+    action = decision_to_model_action(parse_decision_type(decision.action))
 
     executor = DefaultModelActionExecutor(
         model_store=model_store,
@@ -283,6 +243,7 @@ def execute_decision():
         "action": decision.action,
         "result": result,
     }
+
 
 # ---------------------------------------------------------------------
 # Phase IV.3 — Explicit promotion / rollback
