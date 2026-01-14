@@ -760,3 +760,6 @@ Tests validate **contracts**, not implementations:
 - snapshot state transitions
 
 This keeps tests stable while allowing internal refactors.
+
+
+# TODO, crash recovery across restarts

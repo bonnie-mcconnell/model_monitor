@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, cast
 
 from fastapi import APIRouter, Query, HTTPException
 
 from model_monitor.core.decisions import DecisionType
 from model_monitor.core.decision_engine import DecisionEngine
-from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.config.settings import load_config
 
@@ -15,6 +14,7 @@ from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline
+
 from model_monitor.storage.models.metrics_summary_history import (
     MetricsSummaryHistoryORM,
 )
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 # ---------------------------------------------------------------------
-# Helpers
+# Decision helpers
 # ---------------------------------------------------------------------
 
 _ALLOWED_DECISIONS: set[str] = {
@@ -42,7 +42,8 @@ def parse_decision_type(value: str) -> DecisionType:
             status_code=400,
             detail=f"Invalid decision action '{value}'",
         )
-    return value  # type: ignore[return-value]
+    # explicit cast after validation — no type ignores
+    return cast(DecisionType, value)
 
 
 def decision_to_model_action(action: DecisionType) -> ModelAction:
@@ -56,7 +57,7 @@ def decision_to_model_action(action: DecisionType) -> ModelAction:
 
 
 # ---------------------------------------------------------------------
-# Stores & services (singleton per process)
+# Stores & services (process-level singletons)
 # ---------------------------------------------------------------------
 
 metrics_store = MetricsStore()
@@ -70,7 +71,7 @@ decision_engine = DecisionEngine(config=app_config)
 
 
 # ---------------------------------------------------------------------
-# Metrics access (READ ONLY)
+# Metrics (READ-ONLY)
 # ---------------------------------------------------------------------
 
 @router.get("/metrics/tail")
@@ -100,9 +101,7 @@ def list_metrics(
         else None
     )
 
-    typed_action = (
-        parse_decision_type(action) if action is not None else None
-    )
+    typed_action = parse_decision_type(action) if action else None
 
     records, next_cursor = metrics_store.list(
         limit=limit,
@@ -163,7 +162,7 @@ def get_metrics_summary_history(
 
 
 # ---------------------------------------------------------------------
-# Decisions
+# Decision history
 # ---------------------------------------------------------------------
 
 @router.get("/decisions/history")
@@ -173,7 +172,7 @@ def get_decision_history(limit: int = Query(100, ge=1, le=1000)):
 
 
 # ---------------------------------------------------------------------
-# Phase IV.1 — Decision simulation
+# Phase IV.1 — Decision simulation ONLY
 # ---------------------------------------------------------------------
 
 @router.post("/decisions/simulate")
@@ -184,7 +183,7 @@ def simulate_decision():
         try:
             recent_actions.append(parse_decision_type(row.action))
         except HTTPException:
-            # Ignore unknown/legacy actions safely
+            # Ignore unknown / legacy safely
             continue
 
     decision = decision_engine.decide(
@@ -196,57 +195,17 @@ def simulate_decision():
         recent_actions=recent_actions,
     )
 
-    action = decision_to_model_action(decision.action)
-
-    executor = DefaultModelActionExecutor(
-        model_store=model_store,
-        retrain_pipeline=retrain_pipeline,
-        decision_store=decision_store,
-        dry_run=True,
-    )
-
-    executor.execute(action=action, context={})
-
     return {
         "mode": "simulation",
         "action": decision.action,
         "reason": decision.reason,
-        "executed": action != ModelAction.NONE,
-        "dry_run": True,
+        "would_execute": decision_to_model_action(decision.action)
+        != ModelAction.NONE,
     }
 
 
 # ---------------------------------------------------------------------
-# Phase IV.2 — REAL execution
-# ---------------------------------------------------------------------
-
-@router.post("/decisions/execute")
-def execute_decision():
-    rows = decision_store.tail(limit=1)
-    if not rows:
-        raise HTTPException(404, "No decision to execute")
-
-    decision = rows[0]
-    action = decision_to_model_action(parse_decision_type(decision.action))
-
-    executor = DefaultModelActionExecutor(
-        model_store=model_store,
-        retrain_pipeline=retrain_pipeline,
-        decision_store=decision_store,
-        dry_run=False,
-    )
-
-    result = executor.execute(action=action, context={})
-
-    return {
-        "executed": True,
-        "action": decision.action,
-        "result": result,
-    }
-
-
-# ---------------------------------------------------------------------
-# Phase IV.3 — Explicit promotion / rollback
+# Phase IV.2 — Explicit manual actions (SAFE)
 # ---------------------------------------------------------------------
 
 @router.post("/models/promote")
