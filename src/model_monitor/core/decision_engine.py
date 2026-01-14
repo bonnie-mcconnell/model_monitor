@@ -41,6 +41,7 @@ class DecisionEngine:
         assert f1_baseline >= 0.0, "baseline f1 must be non-negative"
 
         f1_drop = f1_baseline - f1
+        recent_actions = list(recent_actions or [])
 
         # -----------------------------
         # 1. Severe drift → reject
@@ -72,7 +73,7 @@ class DecisionEngine:
             )
 
         # -----------------------------
-        # 3. Sustained degradation → retrain
+        # 3. Sustained degradation → retrain (with cooldown)
         # -----------------------------
         if f1_drop >= self.cfg.retrain.min_f1_gain:
             if self._last_retrain_batch is not None:
@@ -87,6 +88,16 @@ class DecisionEngine:
                         },
                     )
 
+            # Secondary safety: avoid retrain thrashing via recent actions
+            if "retrain" in recent_actions[-self.cfg.retrain.cooldown_batches :]:
+                return Decision(
+                    action="none",
+                    reason="Recent retrain detected in action history",
+                    metadata={
+                        "cooldown_batches": self.cfg.retrain.cooldown_batches,
+                    },
+                )   
+
             self._last_retrain_batch = batch_index
             return Decision(
                 action="retrain",
@@ -100,11 +111,12 @@ class DecisionEngine:
             )
 
         # -----------------------------
-        # 4. Stability → promote
+        # 4. Stability → promote (hysteresis)
         # -----------------------------
-        if recent_actions is not None:
-            n = self.cfg.retrain.min_stable_batches
-            if len(recent_actions) >= n and all(a == "none" for a in recent_actions[-n:]):
+        n = self.cfg.retrain.min_stable_batches
+        if len(recent_actions) >= n:
+            window = recent_actions[-n:]
+            if all(a == "none" for a in window):
                 return Decision(
                     action="promote",
                     reason="Promotion stability conditions satisfied",
