@@ -57,7 +57,7 @@ class DecisionExecutor:
         if decision.action not in self.VALID_ACTIONS:
             raise ValueError(f"Unknown decision action: {decision.action}")
 
-        action = ModelAction(decision.action)
+        action = ModelAction.from_decision(decision.action)
 
         # ----------------------------
         # No-op decisions

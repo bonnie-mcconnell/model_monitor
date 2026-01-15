@@ -1,5 +1,16 @@
-from typing import Optional, List
+from typing import Optional, List, Literal, Dict, Any
 from pydantic import BaseModel
+
+
+DecisionType = Literal[
+    "none", "retrain", "promote", "rollback", "reject", "system_error"
+]
+
+
+class DecisionSchema(BaseModel):
+    action: DecisionType
+    reason: str
+    metadata: Dict[str, float | int | bool | str]
 
 
 # --------------------------------------------------
@@ -28,7 +39,7 @@ class MetricsRecordResponse(BaseModel):
     avg_confidence: float
     drift_score: float
     decision_latency_ms: float
-    action: str
+    action: DecisionType
     reason: str
     previous_model: Optional[str]
     new_model: Optional[str]

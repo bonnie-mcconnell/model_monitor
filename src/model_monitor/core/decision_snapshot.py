@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from typing import Optional, Dict, Any
+from dataclasses import dataclass
 from pydantic import BaseModel, Field
 
 from model_monitor.core.decisions import DecisionType
 
-
+@dataclass
 class DecisionSnapshot(BaseModel):
     """
     Persistent snapshot of a decision and its execution state.
