@@ -40,8 +40,8 @@ class DecisionEngine:
         assert f1 >= 0.0, "f1 must be non-negative"
         assert f1_baseline >= 0.0, "baseline f1 must be non-negative"
 
-        f1_drop = f1_baseline - f1
         recent_actions = list(recent_actions or [])
+        f1_drop = f1_baseline - f1
 
         # -----------------------------
         # 1. Severe drift → reject
@@ -73,9 +73,10 @@ class DecisionEngine:
             )
 
         # -----------------------------
-        # 3. Sustained degradation → retrain (with cooldown)
+        # 3. Sustained degradation → retrain (with hysteresis)
         # -----------------------------
         if f1_drop >= self.cfg.retrain.min_f1_gain:
+            # Cooldown by batch index
             if self._last_retrain_batch is not None:
                 since_last = batch_index - self._last_retrain_batch
                 if since_last < self.cfg.retrain.cooldown_batches:
@@ -88,15 +89,16 @@ class DecisionEngine:
                         },
                     )
 
-            # Secondary safety: avoid retrain thrashing via recent actions
-            if "retrain" in recent_actions[-self.cfg.retrain.cooldown_batches :]:
+            # Cooldown by recent actions
+            window = recent_actions[-self.cfg.retrain.cooldown_batches :]
+            if "retrain" in window:
                 return Decision(
                     action="none",
                     reason="Recent retrain detected in action history",
                     metadata={
                         "cooldown_batches": self.cfg.retrain.cooldown_batches,
                     },
-                )   
+                )
 
             self._last_retrain_batch = batch_index
             return Decision(
