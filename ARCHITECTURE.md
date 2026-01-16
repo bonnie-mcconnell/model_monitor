@@ -1,48 +1,88 @@
 # Model Monitor — Architecture Overview
+## Design goals
 
-## Design Goals
 - Deterministic decision-making
 - Explainable automation
 - Async-safe execution
 - Clear separation of policy vs execution
+- Auditability and rollback safety
 
-## Core Concepts
+## Core components
+### Monitoring layer
 
-### Monitoring
-Batch-level metrics are recorded and aggregated into rolling windows.
-No decisions are made at this stage.
+- Records batch-level metrics
+- Aggregates metrics into rolling windows
+- Computes drift and trust scores
 
-### Trust Score
-A bounded [0,1] trust score combines accuracy, F1, confidence, drift, and latency.
-This provides a single operational signal for alerting and automation.
+No decisions are made here.
+Monitoring emits signals only.
 
-### Decision Engine
-Pure policy layer.
-Consumes metrics and trust signals and produces an immutable Decision.
-Contains no I/O and no side effects.
+### Trust score
 
-### Decision Executor
-Async-only side-effect layer.
-Executes retraining, promotion, and rollback without blocking monitoring.
+A bounded [0, 1] score derived from:
+- accuracy
+- F1
+- confidence
+- drift severity
+- optional latency
 
-### Model Store
-Atomic model lifecycle management:
+This provides a single operational signal for:
+- alerting
+- policy evaluation
+- dashboards
+
+### Decision engine
+
+- Pure policy layer
+- Deterministic and side-effect free
+- Consumes metrics and trust signals
+- Produces an immutable Decision
+
+The engine contains no async code, no I/O, and no persistence.
+
+### Decision executor
+
+- Async-only execution layer
+- Executes retraining, promotion, and rollback
+- Enforces:
+- cooldowns
+- evidence thresholds
+- idempotency
+- Supports dry-run execution
+
+All side effects are isolated here.
+
+### Model store
+
+Responsible for:
+- model persistence
 - promotion
-- rollback
 - archival
-File-based by default, abstracted behind a stable API.
+- rollback safety
 
-## Execution Contexts
-The system does not rely on a single global orchestrator.
-Instead, each execution context (inference, simulation, background monitoring)
-composes the same primitives:
+Key properties:
+- atomic promotion
+- no in-place overwrites
+- append-only metadata
 
-aggregation → decision → execution
+File-based by default, abstracted behind a stable interface.
 
-This avoids duplication while preserving clarity.
+### Execution model
 
-## Failure Handling
-- Cold-start safe
-- Retrain cooldown enforced
-- Rollback only when archive exists
-- No blocking operations in monitoring paths
+The system avoids a single global orchestrator.
+
+Instead, each runtime context (simulation, inference, background jobs) composes:
+
+aggregate → decide → execute
+
+This minimizes duplication while preserving clarity and testability.
+
+### Failure handling
+
+- cold-start safe
+- retrain cooldown enforced
+- rollback only when archive exists
+- no blocking operations in monitoring paths
+- explicit failure states in decision snapshots
+
+Failures are surfaced early and explicitly.
