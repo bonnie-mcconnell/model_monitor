@@ -153,16 +153,22 @@ class Predictor:
 
         trust_proxy = max(0.0, min(1.0, 1.0 - drift_score))
 
+        can_decide = (
+            y_true is not None
+            and self.f1_baseline is not None
+            and self.batch_index > 1
+        )
+
         decision = (
             self.decision_engine.decide(
                 batch_index=self.batch_index,
                 trust_score=trust_proxy,
                 f1=f1,
-                f1_baseline=self.f1_baseline,
+                f1_baseline=self.f1_baseline, # TODO
                 drift_score=drift_score,
                 recent_actions=self.decision_history.recent_actions(),
             )
-            if y_true is not None and self.f1_baseline is not None
+            if can_decide
             else Decision(
                 action="none",
                 reason="insufficient_signal_for_decision",
@@ -172,3 +178,12 @@ class Predictor:
 
         self.decision_history.record(decision)
         return preds, confs, decision
+    
+
+    def current_model_version(self) -> Optional[str]:
+        """
+        Return the currently active model version as declared in active.json.
+        Does not load or reload the model.
+        """
+        return self._load_active_version()
+
