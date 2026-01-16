@@ -1,3 +1,9 @@
+"""
+Main simulation loop.
+
+Drives streaming inference, delayed labels, monitoring,
+decision evaluation, and retraining execution.
+"""
 import json
 import time
 import uuid
