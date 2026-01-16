@@ -159,12 +159,15 @@ class Predictor:
             and self.batch_index > 1
         )
 
+        baseline = self.f1_baseline
+        assert baseline is not None  # for type-checkers only
+
         decision = (
             self.decision_engine.decide(
                 batch_index=self.batch_index,
                 trust_score=trust_proxy,
                 f1=f1,
-                f1_baseline=self.f1_baseline, # TODO
+                f1_baseline=baseline,
                 drift_score=drift_score,
                 recent_actions=self.decision_history.recent_actions(),
             )
@@ -175,6 +178,7 @@ class Predictor:
                 metadata={"n_samples": len(X)},
             )
         )
+
 
         self.decision_history.record(decision)
         return preds, confs, decision
