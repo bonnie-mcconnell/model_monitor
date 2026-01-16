@@ -1,38 +1,52 @@
 # src/model_monitor/core/decision_snapshot.py
 from __future__ import annotations
 
-from typing import Optional, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field, ConfigDict
 
 from model_monitor.core.decisions import DecisionType
-
-
-DecisionStatus = Literal["pending", "executed", "skipped", "failed"]
 
 
 class DecisionSnapshot(BaseModel):
     """
     Persistent snapshot of a decision and its execution state.
 
-    Used for:
+    This object is intentionally MUTABLE.
+
+    It represents the lifecycle of a decision execution and is used for:
     - idempotency
     - crash recovery
-    - auditability
+    - auditing
     """
 
-    decision_id: str
-    action: DecisionType
-    timestamp: float = Field(..., gt=0)
-
-    model_version: Optional[str] = None
-    retrain_key: Optional[str] = None
-
-    status: DecisionStatus = Field(
-        ...,
-        description="Execution status of the decision",
+    model_config = ConfigDict(
+        frozen=False,          # <-- REQUIRED (executor mutates state)
+        validate_assignment=True,
+        extra="forbid",
     )
 
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    decision_id: str = Field(..., description="Globally unique decision ID")
+    action: DecisionType = Field(..., description="Decision action taken")
+    timestamp: float = Field(..., description="Decision creation time (epoch)")
 
-    class Config:
-        frozen = True  # audit safety
+    # Execution state
+    status: str = Field(
+        ...,
+        description="Execution status: pending | executed | skipped | failed",
+    )
+
+    # Optional execution context
+    model_version: Optional[str] = Field(
+        default=None,
+        description="Model version active at execution time",
+    )
+
+    retrain_key: Optional[str] = Field(
+        default=None,
+        description="Unique retrain artifact key (if retrain triggered)",
+    )
+
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Free-form execution metadata",
+    )
