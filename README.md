@@ -49,3 +49,6 @@ This avoids duplication while preserving clarity.
 
 
 # TODO, crash recovery across restarts
+
+### behavior-monitoring branch
+Extension of Model Monitor focused on detecting and preventing AI behavioral regressions and alignment drift in production systems
