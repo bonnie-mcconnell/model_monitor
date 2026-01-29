@@ -4,7 +4,13 @@ from typing import Optional
 from .guarantee import Severity
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
+class EvaluationResult:
+    passed: bool
+    reason: Optional[str] = None
+
+
+@dataclass(frozen=True, slots=True)
 class GuaranteeEvaluation:
     guarantee_id: str
     passed: bool

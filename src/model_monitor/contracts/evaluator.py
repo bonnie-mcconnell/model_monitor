@@ -1,9 +1,13 @@
-from typing import Protocol, Optional
+from typing import Protocol, Optional, runtime_checkable
 
 
+@runtime_checkable
 class EvaluationResult(Protocol):
-    passed: bool
-    reason: Optional[str]
+    @property
+    def passed(self) -> bool: ...
+
+    @property
+    def reason(self) -> Optional[str]: ...
 
 
 class GuaranteeEvaluator(Protocol):
