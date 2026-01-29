@@ -52,3 +52,22 @@ This avoids duplication while preserving clarity.
 
 ### behavior-monitoring branch
 Extension of Model Monitor focused on detecting and preventing AI behavioral regressions and alignment drift in production systems
+
+### CONTRACT DSL FORMAT
+
+Example:
+
+contract_id: support_response
+version: "1.0"
+scope: chat_completion
+
+guarantees:
+  - id: valid_json
+    description: Response must be valid JSON
+    severity: CRITICAL
+    evaluator: json_validity
+
+  - id: response_schema_v1
+    description: Response must conform to SupportResponse schema v1
+    severity: CRITICAL
+    evaluator: json_schema_v1
