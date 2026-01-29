@@ -133,3 +133,17 @@ class DecisionEngine:
             reason="System operating within thresholds",
             metadata={"trust_score": trust_score},
         )
+
+
+# TODO: add behavioral condition e.g:
+"""
+if trust_score < cfg.trust.min_score_due_to_behavior:
+    return Decision(
+        action="reject",
+        reason="Behavioral contract violations exceeded threshold",
+        metadata={
+            "trust_score": trust_score,
+            "behavioral_violation_rate": rate,
+        },
+    )
+"""

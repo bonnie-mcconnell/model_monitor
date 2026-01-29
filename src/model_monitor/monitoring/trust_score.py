@@ -92,3 +92,14 @@ def compute_trust_score(
     )
 
     return clamp(trust), components
+
+
+# TODO: add behavioural components e.g
+"""
+behavioral_penalty = clamp(
+    1.0 - behavioral_violation_rate * cfg.behavior.weight,
+    min=0.0,
+    max=1.0,
+)
+
+"""
