@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from .guarantee import Severity
+from ..guarantee import Severity
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,6 +1,6 @@
 from jsonschema import validate, ValidationError
 
-from ..evaluation import EvaluationResult
+from contracts.behavioral.evaluation import EvaluationResult
 
 
 class JsonSchemaEvaluator:

@@ -71,3 +71,47 @@ guarantees:
     description: Response must conform to SupportResponse schema v1
     severity: CRITICAL
     evaluator: json_schema_v1
+
+Behavioral Contracts & Decision Engine
+
+Modern AI systems silently regress:
+
+Tone changes
+
+Safety posture shifts
+
+Instruction adherence erodes
+
+Structured output breaks
+
+These failures are rarely caught by metrics like accuracy or latency.
+
+Model Monitor introduces behavioral contracts — explicit, enforceable guarantees about how a model must behave in production.
+
+Each model interaction is evaluated against:
+
+Deterministic behavioral guarantees
+
+Severity-scored violations
+
+Explicit decision policies
+
+Every decision is:
+
+Explainable
+
+Replayable
+
+Auditable
+
+Immutable
+
+This enables:
+
+Automated blocking and rollback
+
+Safe prompt and model iteration
+
+Compliance-grade AI behavior tracking
+
+Unlike heuristic dashboards, this system provides policy-level control over AI behavior.

@@ -1,6 +1,6 @@
 import json
 
-from ..evaluation import EvaluationResult
+from contracts.behavioral.evaluation import EvaluationResult
 
 
 class JsonValidityEvaluator:
