@@ -1,14 +1,6 @@
 import json
-from dataclasses import dataclass
-from typing import Optional
 
-from ..evaluator import EvaluationResult
-
-
-@dataclass(frozen=True)
-class _Result:
-    passed: bool
-    reason: Optional[str] = None
+from ..evaluation import EvaluationResult
 
 
 class JsonValidityEvaluator:
@@ -18,6 +10,6 @@ class JsonValidityEvaluator:
     def evaluate(self, *, output: str) -> EvaluationResult:
         try:
             json.loads(output)
-            return _Result(passed=True)
+            return EvaluationResult(passed=True)
         except Exception as e:
-            return _Result(passed=False, reason=str(e))
+            return EvaluationResult(passed=False, reason=str(e))
