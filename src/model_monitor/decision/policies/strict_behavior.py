@@ -1,7 +1,7 @@
 from model_monitor.contracts.policy import DecisionPolicy
 from model_monitor.contracts.behavioral.evaluation import GuaranteeEvaluation
 from model_monitor.contracts.outcome import DecisionOutcome, OutcomeReason
-from model_monitor.contracts.severity import Severity
+from model_monitor.contracts.guarantee import Severity
 
 
 class StrictBehaviorPolicy:
