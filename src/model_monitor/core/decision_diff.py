@@ -19,8 +19,3 @@ def diff_decisions(
         diffs["reasons"] = (previous.reasons, current.reasons)
 
     return diffs
-
-
-# TODO: delete decision/ files. 
-# aggregation files and metrics files in monitoring/behaviour 
-# (duplicated logic??), give actual repo tree and check
