@@ -65,7 +65,7 @@ def test_json_schema_fails_on_missing_required_field():
     output = json.dumps({"ticket_id": "T-123"})  # missing 'response'
     result = ev.evaluate(output=output)
     assert result.passed is False
-    assert "response" in result.reason
+    assert result.reason is not None and "response" in result.reason
 
 
 def test_json_schema_fails_on_wrong_type():
