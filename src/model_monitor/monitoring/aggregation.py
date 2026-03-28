@@ -23,6 +23,7 @@ from model_monitor.monitoring.invariants import (
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decision_snapshot import DecisionSnapshot
 from model_monitor.core.decision_executor import DecisionExecutor
+from model_monitor.core.decisions import DecisionType
 
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
@@ -33,7 +34,7 @@ from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline
 from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
-from model_monitor.config.settings import load_config
+from model_monitor.config.settings import load_config, AppConfig
 
 
 AGGREGATION_WINDOWS: dict[str, int] = {
@@ -65,13 +66,14 @@ async def aggregate_once(
     retrain_buffer: RetrainEvidenceBuffer,
     decision_engine: DecisionEngine,
     decision_executor: DecisionExecutor,
-    decision_store: DecisionStore,          # NEW — single decision audit log
-    model_store: ModelStore,                # NEW — baseline source
+    decision_store: DecisionStore,         
+    model_store: ModelStore, 
+    cfg: AppConfig,              
     now: float | None = None,
 ) -> None:
     now = now or time.time()
 
-    # Read baseline once per aggregation pass — same for all windows
+    # Read baseline once per aggregation pass, same for all windows
     active_meta = model_store.get_active_metadata()
     baseline_f1: float | None = active_meta.get("metrics", {}).get("baseline_f1")
 
@@ -124,13 +126,17 @@ async def aggregate_once(
         # Drift-based reject still fires normally. This is intentional.
         effective_baseline = baseline_f1 if baseline_f1 is not None else summary.avg_f1
 
+        # Load recent actions for hysteresis — promote requires N stable batches
+        recent_raw = decision_store.tail(limit=cfg.retrain.cooldown_batches + 5)
+        recent_actions = [cast(DecisionType, r.action) for r in recent_raw]
+
         decision = decision_engine.decide(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
             f1=summary.avg_f1,
             f1_baseline=effective_baseline,
             drift_score=summary.avg_drift_score,
-            recent_actions=None,
+            recent_actions=recent_actions,
         )
 
         snapshot = DecisionSnapshot(
@@ -155,7 +161,7 @@ async def aggregate_once(
             drift_score=summary.avg_drift_score,
         )
 
-        # Execute — asyncio.create_task is safe here because we're inside async def
+        # Execute - asyncio.create_task is safe here because we're inside async def
         asyncio.create_task(
             decision_executor.execute(
                 decision=decision,
@@ -202,9 +208,10 @@ async def start_aggregation_loop(
             decision_executor=decision_executor,
             decision_store=decision_store,
             model_store=model_store,
+            cfg=cfg,
         )
         await asyncio.sleep(poll_interval)
-        
+
 
 def _aggregate_records(
     window: str,
