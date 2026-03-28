@@ -28,10 +28,6 @@ models/archive/
 Thumbs.db
 .idea/
 
-
-
-# make sure logging config is used properly everywhere
-
-# check run simulation
-# main.py dashboard.py, metrics.py, analytics.py
-# readme + test manually
+data/metrics/*.db
+data/metrics/*.db-shm
+data/metrics/*.db-wal
