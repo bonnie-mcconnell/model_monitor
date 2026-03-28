@@ -128,8 +128,11 @@ async def aggregate_once(
 
         # Load recent actions for hysteresis — promote requires N stable batches
         recent_raw = decision_store.tail(limit=cfg.retrain.cooldown_batches + 5)
-        recent_actions = [cast(DecisionType, r.action) for r in recent_raw]
-
+        recent_actions: list[DecisionType] = cast(
+            list[DecisionType],
+            [r.action for r in recent_raw],
+        )
+        
         decision = decision_engine.decide(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
