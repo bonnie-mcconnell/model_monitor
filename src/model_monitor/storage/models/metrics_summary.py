@@ -20,6 +20,7 @@ class MetricsSummaryORM(Base):
     avg_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     avg_drift_score: Mapped[float] = mapped_column(Float, nullable=False)
     avg_latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
+    trust_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     updated_ts: Mapped[float] = mapped_column(Float, nullable=False)
 

@@ -7,6 +7,7 @@ from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.storage.model_store import ModelStore
 
 
 class DecisionRunner:
@@ -39,7 +40,8 @@ class DecisionRunner:
         self,
         *,
         windows: Iterable[str],
-        now: Optional[float] = None,
+        model_store: ModelStore,
+        now: float | None = None,
     ) -> list[Decision]:
         """
         Evaluate decisions for the specified aggregation windows.
@@ -56,16 +58,21 @@ class DecisionRunner:
 
         recent_actions = self._load_recent_actions(limit=10)
 
+        active_meta = model_store.get_active_metadata()
+        baseline_f1: float | None = active_meta.get("metrics", {}).get("baseline_f1")
+
         for window in windows:
             summary = self._summary_store.get(window)
             if summary is None:
                 continue
 
+            effective_baseline = baseline_f1 if baseline_f1 is not None else summary.avg_f1
+
             decision = self._engine.decide(
                 batch_index=summary.n_batches,
-                trust_score=summary.avg_accuracy,  # trust_score not persisted here
+                trust_score=summary.trust_score,   # now persisted by aggregation_loop
                 f1=summary.avg_f1,
-                f1_baseline=summary.avg_f1,  # baseline wiring later
+                f1_baseline=effective_baseline,
                 drift_score=summary.avg_drift_score,
                 recent_actions=recent_actions,
             )
@@ -73,7 +80,7 @@ class DecisionRunner:
             self._decision_store.record(
                 decision=decision,
                 batch_index=summary.n_batches,
-                trust_score=None,  # not stored yet
+                trust_score=summary.trust_score,
                 f1=summary.avg_f1,
                 drift_score=summary.avg_drift_score,
             )

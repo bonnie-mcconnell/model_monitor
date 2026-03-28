@@ -34,6 +34,7 @@ class MetricsSummaryStore:
         avg_confidence: float,
         avg_drift_score: float,
         avg_latency_ms: float,
+        trust_score: float,
     ) -> None:
         session: Session = self._session_factory()
         now = time.time()
@@ -60,6 +61,7 @@ class MetricsSummaryStore:
             row.avg_drift_score = avg_drift_score
             row.avg_latency_ms = avg_latency_ms
             row.updated_ts = now
+            row.trust_score = trust_score
 
             session.commit()
         except Exception:
