@@ -1,62 +1,17 @@
-# Model Monitor — Architecture Overview
+## Behavioral contracts (this branch)
 
-## Design Goals
-- Deterministic decision-making
-- Explainable automation
-- Async-safe execution
-- Clear separation of policy vs execution
+Classical ML monitoring catches statistical drift and performance degradation.
+It doesn't catch the failure modes that matter most for language models: tone
+shifting between versions, structured output silently breaking after a
+fine-tune, safety posture eroding, instruction adherence degrading. These
+failures don't show up in accuracy or latency metrics.
 
-## Core Concepts
+This branch adds behavioral contracts: explicit, versioned, enforceable
+guarantees about how a model must behave in production.
 
-### Monitoring
-Batch-level metrics are recorded and aggregated into rolling windows.
-No decisions are made at this stage.
-
-### Trust Score
-A bounded [0,1] trust score combines accuracy, F1, confidence, drift, and latency.
-This provides a single operational signal for alerting and automation.
-
-### Decision Engine
-Pure policy layer.
-Consumes metrics and trust signals and produces an immutable Decision.
-Contains no I/O and no side effects.
-
-### Decision Executor
-Async-only side-effect layer.
-Executes retraining, promotion, and rollback without blocking monitoring.
-
-### Model Store
-Atomic model lifecycle management:
-- promotion
-- rollback
-- archival
-File-based by default, abstracted behind a stable API.
-
-## Execution Contexts
-The system does not rely on a single global orchestrator.
-Instead, each execution context (inference, simulation, background monitoring)
-composes the same primitives:
-
-aggregation → decision → execution
-
-This avoids duplication while preserving clarity.
-
-## Failure Handling
-- Cold-start safe
-- Retrain cooldown enforced
-- Rollback only when archive exists
-- No blocking operations in monitoring paths
-
-
-### TODO, crash recovery across restarts
-
-### behavior-monitoring branch
-Extension of Model Monitor focused on detecting and preventing AI behavioral regressions and alignment drift in production systems
-
-### CONTRACT DSL FORMAT
-
-Example:
-
+A contract is a YAML file listing guarantees and the evaluator that checks
+each one:
+```yaml
 contract_id: support_response
 version: "1.0"
 scope: chat_completion
@@ -71,47 +26,38 @@ guarantees:
     description: Response must conform to SupportResponse schema v1
     severity: CRITICAL
     evaluator: json_schema_v1
+```
 
-Behavioral Contracts & Decision Engine
+The `BehavioralContractRunner` evaluates each model output against every
+guarantee, produces severity-scored results, and passes them to a
+`DecisionPolicy`. The `StrictBehaviorPolicy` blocks on any CRITICAL failure
+and warns on two or more HIGH failures. Severity uses explicit equality
+comparison rather than `>=` because Python `Enum` doesn't support ordering
+by default - using `>=` would silently pass on any severity level.
 
-Modern AI systems silently regress:
+Every decision is recorded as an immutable `DecisionRecord` with full
+provenance: which evaluator ran, which version, what the output was, what
+the outcome was. This makes behavioral regressions auditable and replayable
+- you can diff two `DecisionRecord`s from consecutive model versions to see
+exactly what changed.
 
-Tone changes
+Two evaluators are implemented: `JsonValidityEvaluator` checks that output
+parses as JSON. `JsonSchemaEvaluator` validates output against a JSON Schema
+bound at construction time - one evaluator instance per schema version, which
+makes the registry append-only rather than mutable. The schema is validated
+at construction time so a malformed schema fails immediately rather than
+silently passing every evaluation.
 
-Safety posture shifts
+**What I'd do differently.** The `trust_score` in the main monitoring layer
+doesn't yet incorporate behavioral violation rates. There's a TODO in
+`trust_score.py` for a `behavioral_penalty` component. Wiring that in would
+mean a model that's passing accuracy metrics but failing behavioral contracts
+gets a lower trust score and triggers the policy engine, which is the actual
+goal.
 
-Instruction adherence erodes
-
-Structured output breaks
-
-These failures are rarely caught by metrics like accuracy or latency.
-
-Model Monitor introduces behavioral contracts — explicit, enforceable guarantees about how a model must behave in production.
-
-Each model interaction is evaluated against:
-
-Deterministic behavioral guarantees
-
-Severity-scored violations
-
-Explicit decision policies
-
-Every decision is:
-
-Explainable
-
-Replayable
-
-Auditable
-
-Immutable
-
-This enables:
-
-Automated blocking and rollback
-
-Safe prompt and model iteration
-
-Compliance-grade AI behavior tracking
-
-Unlike heuristic dashboards, this system provides policy-level control over AI behavior.
+**What's next.** An LLM-as-judge evaluator that calls the Anthropic API to
+assess tone consistency and instruction adherence across model versions. That
+evaluator would take two outputs (one from the reference model, one from the
+candidate) and return a structured comparison. Combined with the contract
+system already here, it would give a full behavioral regression test suite
+that runs automatically on every promotion.
