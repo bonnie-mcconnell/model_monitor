@@ -1,7 +1,7 @@
 .PHONY: install run sim test lint
 
 install:
-	pip install -e .
+	pip install -e ".[dev]"
 
 run:
 	uvicorn model_monitor.api.main:app --reload --port 8000
@@ -13,4 +13,5 @@ test:
 	pytest tests/ -v
 
 lint:
+	mypy src/ --strict
 	ruff check src/

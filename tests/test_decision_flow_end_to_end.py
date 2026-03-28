@@ -53,6 +53,7 @@ async def test_decision_flow_end_to_end():
         avg_confidence=0.5,
         avg_drift_score=0.7,
         avg_latency_ms=100.0,
+        trust_score=0.55,
     )
 
     # -----------------------------
