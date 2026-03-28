@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Optional, Mapping
 
-from sklearn import metrics
-from streamlit import context
-
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.core.decisions import Decision
 from model_monitor.storage.model_store import ModelStore
