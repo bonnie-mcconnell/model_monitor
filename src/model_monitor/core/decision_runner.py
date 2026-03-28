@@ -40,7 +40,7 @@ class DecisionRunner:
         self,
         *,
         windows: Iterable[str],
-        model_store: ModelStore,
+        model_store: ModelStore | None = None,
         now: float | None = None,
     ) -> list[Decision]:
         """
@@ -48,18 +48,20 @@ class DecisionRunner:
 
         Args:
             windows: aggregation windows to evaluate (e.g. ["5m", "1h", "24h"])
+            model_store: if provided, reads baseline_f1 from the active model's
+                        promotion metadata. When None (e.g. in tests or before
+                        first promotion), baseline falls back to current avg_f1,
+                        which suppresses retrain/rollback but still fires on drift.
             now: override timestamp (primarily for testing)
-
-        Returns:
-            List of decisions produced.
         """
         now = now or time.time()
         decisions: list[Decision] = []
-
         recent_actions = self._load_recent_actions(limit=10)
 
-        active_meta = model_store.get_active_metadata()
-        baseline_f1: float | None = active_meta.get("metrics", {}).get("baseline_f1")
+        baseline_f1: float | None = None
+        if model_store is not None:
+            active_meta = model_store.get_active_metadata()
+            baseline_f1 = active_meta.get("metrics", {}).get("baseline_f1")
 
         for window in windows:
             summary = self._summary_store.get(window)
