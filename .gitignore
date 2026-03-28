@@ -36,3 +36,4 @@ Thumbs.db
 # check run simulation
 # main.py dashboard.py, metrics.py, analytics.py
 # readme + test manually
+data/metrics/metrics.db
