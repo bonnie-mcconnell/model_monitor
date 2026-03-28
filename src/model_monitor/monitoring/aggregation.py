@@ -23,6 +23,7 @@ from model_monitor.monitoring.invariants import (
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decision_snapshot import DecisionSnapshot
 from model_monitor.core.decision_executor import DecisionExecutor
+from model_monitor.core.decisions import DecisionType
 
 from model_monitor.storage.metrics_store import MetricsStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
@@ -33,7 +34,7 @@ from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline
 from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
-from model_monitor.config.settings import load_config
+from model_monitor.config.settings import load_config, AppConfig
 
 
 AGGREGATION_WINDOWS: dict[str, int] = {
@@ -57,7 +58,7 @@ class AggregatedSummary:
     computed_at: float
 
 
-def aggregate_once(
+async def aggregate_once(
     *,
     metrics_store: MetricsStore,
     summary_store: MetricsSummaryStore,
@@ -65,40 +66,31 @@ def aggregate_once(
     retrain_buffer: RetrainEvidenceBuffer,
     decision_engine: DecisionEngine,
     decision_executor: DecisionExecutor,
+    decision_store: DecisionStore,         
+    model_store: ModelStore, 
+    cfg: AppConfig,              
     now: float | None = None,
 ) -> None:
     now = now or time.time()
 
-    for window, seconds in AGGREGATION_WINDOWS.items():
-        records, _ = metrics_store.list(
-            limit=10_000,
-            start_ts=now - seconds,
-        )
+    # Read baseline once per aggregation pass, same for all windows
+    active_meta = model_store.get_active_metadata()
+    baseline_f1: float | None = active_meta.get("metrics", {}).get("baseline_f1")
 
+    for window, seconds in AGGREGATION_WINDOWS.items():
+        records, _ = metrics_store.list(limit=10_000, start_ts=now - seconds)
         if not records:
             continue
 
         summary = _aggregate_records(window, records)
 
-        # ---------------------------------
-        # Aggregation invariants
-        # ---------------------------------
         assert_monotonic("n_batches", summary.n_batches)
-
         assert_bounded("avg_accuracy", summary.avg_accuracy, lo=0.0, hi=1.0)
         assert_bounded("avg_f1", summary.avg_f1, lo=0.0, hi=1.0)
         assert_bounded("avg_confidence", summary.avg_confidence, lo=0.0, hi=1.0)
         assert_bounded("avg_drift_score", summary.avg_drift_score, lo=0.0, hi=1.0)
+        validate_trust_components(cast(dict[str, float], summary.trust_components))
 
-        validate_trust_components(
-            cast(dict[str, float], summary.trust_components)
-        )
-
-
-
-        # -------------------------
-        # Retrain evidence
-        # -------------------------
         retrain_buffer.add_summary(
             accuracy=summary.avg_accuracy,
             f1=summary.avg_f1,
@@ -107,9 +99,6 @@ def aggregate_once(
             timestamp=summary.computed_at,
         )
 
-        # -------------------------
-        # Persistence
-        # -------------------------
         summary_store.upsert(
             window=window,
             n_batches=summary.n_batches,
@@ -118,6 +107,7 @@ def aggregate_once(
             avg_confidence=summary.avg_confidence,
             avg_drift_score=summary.avg_drift_score,
             avg_latency_ms=summary.avg_latency_ms,
+            trust_score=summary.trust_score,      # persist so DecisionRunner can read it
         )
 
         history_store.write(
@@ -131,16 +121,22 @@ def aggregate_once(
             avg_latency_ms=summary.avg_latency_ms,
         )
 
-        # -------------------------
-        # Decision
-        # -------------------------
+        # When no baseline exists yet (first ever deployment), f1_baseline=avg_f1
+        # means f1_drop=0, so retrain/rollback are safely suppressed.
+        # Drift-based reject still fires normally. This is intentional.
+        effective_baseline = baseline_f1 if baseline_f1 is not None else summary.avg_f1
+
+        # Load recent actions for hysteresis — promote requires N stable batches
+        recent_raw = decision_store.tail(limit=cfg.retrain.cooldown_batches + 5)
+        recent_actions = [cast(DecisionType, r.action) for r in recent_raw]
+
         decision = decision_engine.decide(
             batch_index=summary.n_batches,
             trust_score=summary.trust_score,
             f1=summary.avg_f1,
-            f1_baseline=summary.avg_f1,  # TODO: baseline wiring
+            f1_baseline=effective_baseline,
             drift_score=summary.avg_drift_score,
-            recent_actions=None,
+            recent_actions=recent_actions,
         )
 
         snapshot = DecisionSnapshot(
@@ -152,20 +148,27 @@ def aggregate_once(
                 **decision.metadata,
                 "window": window,
                 "n_batches": summary.n_batches,
+                "baseline_f1": effective_baseline,
             },
         )
 
+        # Persist to audit log (single decision path)
+        decision_store.record(
+            decision=decision,
+            batch_index=summary.n_batches,
+            trust_score=summary.trust_score,
+            f1=summary.avg_f1,
+            drift_score=summary.avg_drift_score,
+        )
+
+        # Execute - asyncio.create_task is safe here because we're inside async def
         asyncio.create_task(
             decision_executor.execute(
                 decision=decision,
                 snapshot=snapshot,
-                context={
-                    "window": window,
-                    "n_batches": summary.n_batches,
-                },
+                context={"window": window, "n_batches": summary.n_batches},
             )
         )
-
 
         check_alerts(window, {"trust_score": summary.trust_score})
 
@@ -177,12 +180,11 @@ async def start_aggregation_loop(
     history_store: MetricsSummaryHistoryStore,
     retrain_buffer: RetrainEvidenceBuffer,
     model_store: ModelStore,
+    decision_store: DecisionStore,
     poll_interval: int = 60,
 ) -> None:
     cfg = load_config()
-
     decision_engine = DecisionEngine(cfg)
-    decision_store = DecisionStore()
 
     action_executor = DefaultModelActionExecutor(
         model_store=model_store,
@@ -197,13 +199,16 @@ async def start_aggregation_loop(
     )
 
     while True:
-        aggregate_once(
+        await aggregate_once(
             metrics_store=metrics_store,
             summary_store=summary_store,
             history_store=history_store,
             retrain_buffer=retrain_buffer,
             decision_engine=decision_engine,
             decision_executor=decision_executor,
+            decision_store=decision_store,
+            model_store=model_store,
+            cfg=cfg,
         )
         await asyncio.sleep(poll_interval)
 
