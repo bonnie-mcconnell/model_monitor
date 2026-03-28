@@ -14,3 +14,4 @@ test:
 
 lint:
 	ruff check src/
+	mypy src/ --strict
