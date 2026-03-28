@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Optional, Mapping
 
+from sklearn import metrics
+from streamlit import context
+
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.core.decisions import Decision
 from model_monitor.storage.model_store import ModelStore
@@ -84,8 +87,11 @@ class DefaultModelActionExecutor:
 
         if action == ModelAction.PROMOTE:
             metrics = context.get("metrics", {})
+            # Normalise: if caller passed f1 but not baseline_f1, backfill it
+            if "f1" in metrics and "baseline_f1" not in metrics:
+                metrics = {**metrics, "baseline_f1": metrics["f1"]}
             return None if self.dry_run else self.store.promote_candidate(metrics)
-
+        
         if action == ModelAction.RETRAIN:
             if self.dry_run:
                 return None
@@ -114,6 +120,7 @@ class DefaultModelActionExecutor:
 
             return self.store.promote_candidate(
                 metrics={
+                    "baseline_f1": result.promotion.candidate_f1,  # canonical key for consumers
                     "candidate_f1": result.promotion.candidate_f1,
                     "current_f1": result.promotion.current_f1,
                     "improvement": result.promotion.improvement,
