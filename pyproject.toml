@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "model-monitor"
 version = "0.1.0"
-description = "Lightweight ML model monitoring and drift simulation system"
+description = "ML model monitoring with drift detection and behavioral contracts"
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
@@ -13,24 +13,22 @@ dependencies = [
     "scikit-learn",
     "matplotlib",
     "streamlit",
-    "joblib"
+    "joblib",
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy",
+    "pyyaml",
+    "jsonschema",
 ]
 
-[tool.setuptools]
-packages = [
-    "training",
-    "inference",
-    "monitoring",
-    "dashboard",
-    "storage",
-    "config",
-    "data"
-]
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-markers = [
-    "asyncio: mark test as asyncio"
-]
+markers = ["asyncio: mark test as asyncio"]
