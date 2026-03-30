@@ -11,6 +11,12 @@ pyyaml
 fastapi>=0.110
 uvicorn>=0.27
 pydantic
-pytests>=7.0
-aqlalchemy>=2.0
+sqlalchemy>=2.0
 jsonschema
+sentence-transformers>=2.7
+# dev
+pytest>=7.0
+pytest-asyncio
+anyio
+ruff
+mypy
