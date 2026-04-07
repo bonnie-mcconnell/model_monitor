@@ -9,12 +9,12 @@ that is deliberately kept free of I/O and side effects.
 
 I was building out my ML portfolio and kept running into the same gap: most
 tutorials show you how to train a model, but nothing shows you what happens
-after it's deployed. Production models degrade. Features drift. The model you
+after it's deployed. Production models degrade, features drift. The model you
 shipped six months ago is quietly getting worse and nobody notices until
 something breaks. I wanted to build the system that catches that - and to
 understand the engineering trade-offs that make it actually work in production.
 
-## What's hard about it
+## Features
 
 **PSI drift detection.** Population Stability Index requires reusing the
 reference distribution's percentile bin edges when binning incoming data.
