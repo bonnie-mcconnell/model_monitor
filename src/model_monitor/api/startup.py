@@ -1,3 +1,4 @@
+"""Background loop initialization for the FastAPI lifespan."""
 from __future__ import annotations
 
 import asyncio
@@ -7,10 +8,10 @@ from model_monitor.monitoring.aggregation import start_aggregation_loop
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.metrics_store import MetricsStore
-from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.metrics_summary_history_store import (
     MetricsSummaryHistoryStore,
 )
+from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.model_store import ModelStore
 
 log = logging.getLogger(__name__)

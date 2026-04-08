@@ -1,6 +1,7 @@
-from typing import Optional, List, Literal, Dict, Any
-from pydantic import BaseModel, Field
+"""Pydantic request and response models for all API endpoints."""
+from typing import Any, Literal
 
+from pydantic import BaseModel, Field
 
 DecisionType = Literal[
     "none",
@@ -15,7 +16,7 @@ DecisionType = Literal[
 class DecisionSchema(BaseModel):
     action: DecisionType
     reason: str
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # --------------------------------------------------
@@ -28,7 +29,7 @@ class HealthResponse(BaseModel):
 
 class ReadinessResponse(BaseModel):
     ready: bool
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 # --------------------------------------------------
@@ -46,8 +47,8 @@ class MetricsRecordResponse(BaseModel):
     decision_latency_ms: float
     action: DecisionType
     reason: str
-    previous_model: Optional[str]
-    new_model: Optional[str]
+    previous_model: str | None
+    new_model: str | None
 
 
 class MetricsSummaryResponse(BaseModel):
@@ -55,16 +56,16 @@ class MetricsSummaryResponse(BaseModel):
     timestamp: float
     n_batches: int
 
-    avg_accuracy: Optional[float]
-    avg_f1: Optional[float]
-    avg_confidence: Optional[float]
-    avg_drift_score: Optional[float]
-    avg_latency_ms: Optional[float]
+    avg_accuracy: float | None
+    avg_f1: float | None
+    avg_confidence: float | None
+    avg_drift_score: float | None
+    avg_latency_ms: float | None
 
 
 class MetricsSummarySeriesResponse(BaseModel):
     window: str
-    items: List[MetricsSummaryResponse]
+    items: list[MetricsSummaryResponse]
 
 
 # --------------------------------------------------
@@ -81,5 +82,5 @@ class MetricsEventIn(BaseModel):
     decision_latency_ms: float
     action: DecisionType
     reason: str
-    previous_model: Optional[str] = None
-    new_model: Optional[str] = None
+    previous_model: str | None = None
+    new_model: str | None = None
