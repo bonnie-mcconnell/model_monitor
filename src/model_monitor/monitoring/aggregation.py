@@ -1,40 +1,75 @@
+"""Aggregation loop: rolls up metric windows, scores trust, fires decisions."""
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
-from typing import cast
 import uuid
+from collections.abc import Coroutine, Sequence
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, cast
 
-from model_monitor.monitoring.types import MetricRecord
-from model_monitor.monitoring.trust_score import (
-    compute_trust_score,
-    TrustScoreComponents,
-)
+from model_monitor.config.settings import AppConfig, load_config
+from model_monitor.core.decision_engine import DecisionEngine
+from model_monitor.core.decision_executor import DecisionExecutor
+from model_monitor.core.decision_snapshot import DecisionSnapshot
+from model_monitor.core.decisions import DecisionType
+from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
 from model_monitor.monitoring.alerting import check_alerts
-from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 from model_monitor.monitoring.invariants import (
     assert_bounded,
     assert_monotonic,
     validate_trust_components,
 )
-
-from model_monitor.core.decision_engine import DecisionEngine
-from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decision_executor import DecisionExecutor
-from model_monitor.core.decisions import DecisionType
-
+from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
+from model_monitor.monitoring.trust_score import (
+    TrustScoreComponents,
+    compute_trust_score,
+)
+from model_monitor.monitoring.types import MetricRecord
+from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.metrics_store import MetricsStore
-from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.metrics_summary_history_store import (
     MetricsSummaryHistoryStore,
 )
-from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline
-from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
-from model_monitor.config.settings import load_config, AppConfig
+
+log = logging.getLogger(__name__)
+
+
+def _schedule_execution(
+    coro: Coroutine[Any, Any, None],
+    *,
+    window: str,
+    action: str,
+) -> asyncio.Task[None]:
+    """
+    Schedule a decision executor coroutine and attach an exception-logging
+    callback so failures are never silently swallowed.
+
+    asyncio.create_task fires the coroutine concurrently with the rest of the
+    aggregation pass. Without a done-callback, any exception raised inside the
+    task is stored on the Task object but never surfaced — Python only prints
+    a "Task exception was never retrieved" warning at GC time, which may arrive
+    long after the relevant log context is gone.
+    """
+    task: asyncio.Task[None] = asyncio.create_task(coro)
+
+    def _on_done(t: asyncio.Task[None]) -> None:
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            log.error(
+                "decision_executor_task_failed",
+                exc_info=exc,
+                extra={"window": window, "action": action},
+            )
+
+    task.add_done_callback(_on_done)
+    return task
 
 
 AGGREGATION_WINDOWS: dict[str, int] = {
@@ -164,13 +199,14 @@ async def aggregate_once(
             drift_score=summary.avg_drift_score,
         )
 
-        # Execute - asyncio.create_task is safe here because we're inside async def
-        asyncio.create_task(
+        _schedule_execution(
             decision_executor.execute(
                 decision=decision,
                 snapshot=snapshot,
                 context={"window": window, "n_batches": summary.n_batches},
-            )
+            ),
+            window=window,
+            action=decision.action,
         )
 
         check_alerts(window, {"trust_score": summary.trust_score})
