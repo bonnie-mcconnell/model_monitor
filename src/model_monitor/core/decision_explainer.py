@@ -1,10 +1,12 @@
+"""Human-readable explanation layer for decisions."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, Any
+from typing import Any
 
-from model_monitor.core.decisions import Decision
 from model_monitor.core.decision_snapshot import DecisionSnapshot
+from model_monitor.core.decisions import Decision
 
 
 @dataclass(frozen=True)

@@ -1,11 +1,13 @@
+"""Crash-safe model lifecycle executor: promote, rollback, retrain."""
 from __future__ import annotations
 
-from typing import Any, Optional, Mapping
+from collections.abc import Mapping
+from typing import Any
 
-from model_monitor.core.model_actions import ModelAction
 from model_monitor.core.decisions import Decision
-from model_monitor.storage.model_store import ModelStore
+from model_monitor.core.model_actions import ModelAction
 from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.storage.model_store import ModelStore
 from model_monitor.training.retrain_pipeline import RetrainPipeline, RetrainResult
 
 
@@ -37,7 +39,7 @@ class DefaultModelActionExecutor:
         *,
         action: ModelAction,
         context: Mapping[str, Any],
-    ) -> Optional[str]:
+    ) -> str | None:
         recent = self.decision_store.tail(limit=20)
 
         if any(
@@ -70,7 +72,7 @@ class DefaultModelActionExecutor:
         *,
         action: ModelAction,
         context: Mapping[str, Any],
-    ) -> Optional[str]:
+    ) -> str | None:
 
         if action in {ModelAction.NONE, ModelAction.REJECT}:
             return None
@@ -88,7 +90,7 @@ class DefaultModelActionExecutor:
             if "f1" in metrics and "baseline_f1" not in metrics:
                 metrics = {**metrics, "baseline_f1": metrics["f1"]}
             return None if self.dry_run else self.store.promote_candidate(metrics)
-        
+
         if action == ModelAction.RETRAIN:
             if self.dry_run:
                 return None

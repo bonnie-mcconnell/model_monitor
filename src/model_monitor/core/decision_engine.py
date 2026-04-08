@@ -1,9 +1,10 @@
+"""Pure policy engine: converts monitoring signals into operational decisions."""
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.config.settings import AppConfig
+from model_monitor.core.decisions import Decision, DecisionType
 
 
 class DecisionEngine:
@@ -17,9 +18,17 @@ class DecisionEngine:
 
     Maintains minimal ephemeral state for retrain cooldown tracking.
     Intended to be scoped per execution context.
+
+    Behavioral signals enter this engine via the trust_score argument.
+    The trust score already incorporates a behavioral_violation_rate
+    component (see monitoring/trust_score.py), so the engine responds
+    to behavioral degradation through the same rules that govern
+    performance degradation - no separate code path required. A model
+    failing behavioral contracts gets a lower trust score, which feeds
+    into the drift and regression thresholds just like any other signal.
     """
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig) -> None:
         self.cfg = config
         self._last_retrain_batch: int | None = None
 
@@ -36,9 +45,12 @@ class DecisionEngine:
         # -----------------------------
         # Guardrails
         # -----------------------------
-        assert 0.0 <= trust_score <= 1.0, "trust_score must be in [0,1]"
-        assert f1 >= 0.0, "f1 must be non-negative"
-        assert f1_baseline >= 0.0, "baseline f1 must be non-negative"
+        if not (0.0 <= trust_score <= 1.0):
+            raise ValueError(f"trust_score must be in [0,1], got {trust_score}")
+        if f1 < 0.0:
+            raise ValueError(f"f1 must be non-negative, got {f1}")
+        if f1_baseline < 0.0:
+            raise ValueError(f"f1_baseline must be non-negative, got {f1_baseline}")
 
         recent_actions = list(recent_actions or [])
         f1_drop = f1_baseline - f1
@@ -76,7 +88,8 @@ class DecisionEngine:
         # 3. Sustained degradation → retrain (with hysteresis)
         # -----------------------------
         if f1_drop >= self.cfg.retrain.min_f1_gain:
-            # Cooldown by batch index
+            # Cooldown by batch index - ephemeral, survives only this process
+            # lifetime. The action history cooldown below is the durable check.
             if self._last_retrain_batch is not None:
                 since_last = batch_index - self._last_retrain_batch
                 if since_last < self.cfg.retrain.cooldown_batches:
@@ -89,7 +102,7 @@ class DecisionEngine:
                         },
                     )
 
-            # Cooldown by recent actions
+            # Cooldown by recent actions - persisted, survives restarts
             window = recent_actions[-self.cfg.retrain.cooldown_batches :]
             if "retrain" in window:
                 return Decision(
@@ -133,17 +146,3 @@ class DecisionEngine:
             reason="System operating within thresholds",
             metadata={"trust_score": trust_score},
         )
-
-
-# TODO: add behavioral condition e.g:
-"""
-if trust_score < cfg.trust.min_score_due_to_behavior:
-    return Decision(
-        action="reject",
-        reason="Behavioral contract violations exceeded threshold",
-        metadata={
-            "trust_score": trust_score,
-            "behavioral_violation_rate": rate,
-        },
-    )
-"""

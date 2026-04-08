@@ -1,6 +1,8 @@
+"""Protocol defining the interface for model action executors."""
 from __future__ import annotations
 
-from typing import Protocol, Mapping, Any, Optional
+from collections.abc import Mapping
+from typing import Any, Protocol
 
 from model_monitor.core.model_actions import ModelAction
 
@@ -18,5 +20,5 @@ class ModelActionExecutorProtocol(Protocol):
         *,
         action: ModelAction,
         context: Mapping[str, Any],
-    ) -> Optional[str]:
+    ) -> str | None:
         ...

@@ -1,3 +1,4 @@
+"""ModelAction enum - the executable form of a Decision."""
 from __future__ import annotations
 
 from enum import Enum
@@ -17,7 +18,7 @@ class ModelAction(str, Enum):
     REJECT = "reject"
 
     @classmethod
-    def from_decision(cls, decision_action: DecisionType) -> "ModelAction":
+    def from_decision(cls, decision_action: DecisionType) -> ModelAction:
         """
         Explicit boundary between policy decisions and executable actions.
         """

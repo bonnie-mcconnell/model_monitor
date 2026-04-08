@@ -1,7 +1,8 @@
+"""In-memory rolling decision buffer for hysteresis and analytics."""
 from __future__ import annotations
 
 from collections import deque
-from typing import Deque, Iterator, Optional
+from collections.abc import Iterator
 
 from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.storage.decision_store import DecisionStore
@@ -25,9 +26,9 @@ class DecisionHistory:
     def __init__(
         self,
         maxlen: int = 100,
-        store: Optional[DecisionStore] = None,
+        store: DecisionStore | None = None,
     ) -> None:
-        self._decisions: Deque[Decision] = deque(maxlen=maxlen)
+        self._decisions: deque[Decision] = deque(maxlen=maxlen)
         self._store = store
 
     def record(
@@ -55,7 +56,7 @@ class DecisionHistory:
                 model_version=model_version,
             )
 
-    def recent_actions(self, limit: Optional[int] = None) -> list[DecisionType]:
+    def recent_actions(self, limit: int | None = None) -> list[DecisionType]:
         """
         Return recent decision actions (most recent last).
         """
