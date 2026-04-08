@@ -1,6 +1,7 @@
+"""ORM model for the operational decision audit log."""
 from __future__ import annotations
 
-from sqlalchemy import String, Float, Integer, Index
+from sqlalchemy import Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from model_monitor.storage.db import Base
@@ -29,6 +30,10 @@ class DecisionRecordORM(Base):
     drift_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     model_version: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Full decision metadata stored as JSON for audit and analytics.
+    # SQLite stores this as TEXT; the application layer serialises/deserialises.
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 Index(

@@ -1,8 +1,7 @@
+"""ORM model for batch-level metric records."""
 from __future__ import annotations
 
-from typing import Optional
-
-from sqlalchemy import Float, Integer, String, Index
+from sqlalchemy import Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from model_monitor.storage.db import Base
@@ -27,8 +26,8 @@ class MetricsRecordORM(Base):
     action: Mapped[str] = mapped_column(String, index=True)
     reason: Mapped[str] = mapped_column(String)
 
-    previous_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    new_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    previous_model: Mapped[str | None] = mapped_column(String, nullable=True)
+    new_model: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 Index("idx_metrics_action_ts", MetricsRecordORM.action, MetricsRecordORM.timestamp)
