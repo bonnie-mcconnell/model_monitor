@@ -1,4 +1,4 @@
-# Model Monitor — Architecture Overview
+# Model Monitor - Architecture Overview
 ## Design goals
 
 - Deterministic decision-making
@@ -86,3 +86,39 @@ This minimizes duplication while preserving clarity and testability.
 - explicit failure states in decision snapshots
 
 Failures are surfaced early and explicitly.
+
+## Known limitations
+
+- Crash recovery for retrains is implemented via the `DecisionSnapshot` write-ahead
+  pattern. Non-retrain actions (promote, rollback) are idempotent at the model-store
+  level and do not require snapshot persistence.
+- Model store is single-node: `os.replace` is atomic within a filesystem but not
+  across processes without a distributed lock. Horizontal scaling requires a
+  different storage backend.
+- Thresholds are hand-tuned. The trust score weights and the retrain/rollback
+  thresholds are reasoned defaults, not calibrated from historical deployment data.
+
+## Bugs found and fixed by the test suite
+
+**Floating point promotion threshold** (`training/promotion.py`): `0.82 - 0.80`
+evaluates to `0.019999...` in IEEE 754 - less than `0.02`. Without an epsilon
+tolerance, a candidate whose F1 improves by exactly `min_improvement` would be
+silently rejected. Fixed with `_IMPROVEMENT_EPS = 1e-9`.
+
+**Entropy non-negativity** (`utils/stats.py`): additive EPS smoothing in
+`entropy_from_labels` caused a tiny negative result for pure distributions.
+Shannon entropy is non-negative by definition. Fixed with `max(0.0, ...)`.
+
+**ORM state leaked into API responses** (`api/dashboard.py`): using `__dict__`
+on SQLAlchemy ORM rows includes `_sa_instance_state`. Fixed with `_orm_to_dict()`
+which reads only mapped column values.
+
+
+**Decision metadata not persisted** (`storage/decision_store.py`): `Decision.metadata`
+contained the context that produced a decision (baseline F1, threshold at the time,
+cooldown state) but was silently dropped on write. Fixed by adding a `metadata_json`
+TEXT column to `decision_history` and serialising `Decision.metadata` on every
+`record()` call.
+**In-sample evaluation in `RetrainPipeline`** (`training/retrain_pipeline.py`):
+candidate F1 was measured on training data, producing optimistic estimates that
+favour overfit models. Fixed with a 20% held-out validation split.
