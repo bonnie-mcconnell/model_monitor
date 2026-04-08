@@ -1,4 +1,4 @@
-"""ModelAction enum — the executable form of a Decision."""
+"""ModelAction enum - the executable form of a Decision."""
 from __future__ import annotations
 
 from enum import Enum
