@@ -1,3 +1,4 @@
+"""Background loop initialization for the FastAPI lifespan."""
 from __future__ import annotations
 
 import asyncio
@@ -5,24 +6,23 @@ import logging
 
 from model_monitor.monitoring.aggregation import start_aggregation_loop
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
+from model_monitor.storage.behavioral_decision_store import BehavioralDecisionStore
 from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.metrics_store import MetricsStore
-from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.metrics_summary_history_store import (
     MetricsSummaryHistoryStore,
 )
+from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.model_store import ModelStore
+from model_monitor.storage.snapshot_store import SnapshotStore
 
 log = logging.getLogger(__name__)
 
 
-def start_background_loops(
-    *,
-    poll_interval: int = 60,
-) -> None:
+def start_background_loops(*, poll_interval: int = 60) -> None:  # pragma: no cover
     """
     Start background aggregation and decision loops.
-    Intended to be called during FastAPI startup.
+    Called during FastAPI lifespan startup.
     """
     metrics_store = MetricsStore()
     summary_store = MetricsSummaryStore()
@@ -30,6 +30,8 @@ def start_background_loops(
     decision_store = DecisionStore()
     model_store = ModelStore()
     retrain_buffer = RetrainEvidenceBuffer(min_samples=5)
+    behavioral_store = BehavioralDecisionStore()
+    snapshot_store = SnapshotStore()
 
     async def aggregation_loop() -> None:
         log.info("Starting aggregation loop (interval=%ss)", poll_interval)
@@ -40,6 +42,8 @@ def start_background_loops(
             retrain_buffer=retrain_buffer,
             model_store=model_store,
             decision_store=decision_store,
+            behavioral_store=behavioral_store,
+            snapshot_store=snapshot_store,
             poll_interval=poll_interval,
         )
 
