@@ -1,3 +1,4 @@
+"""BehavioralContractRunner - evaluates outputs against a contract."""
 from __future__ import annotations
 
 import uuid
@@ -8,7 +9,6 @@ from model_monitor.contracts.behavioral.evaluation import GuaranteeEvaluation
 from model_monitor.contracts.behavioral.policy import DecisionPolicy
 from model_monitor.contracts.behavioral.records import DecisionRecord
 from model_monitor.contracts.contract import Contract
-from model_monitor.contracts.outcome import DecisionOutcome
 from model_monitor.contracts.registry import EvaluatorRegistry
 
 

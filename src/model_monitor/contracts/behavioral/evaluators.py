@@ -1,10 +1,12 @@
+"""Behavioral contract evaluators: JSON validity, schema, tone, LLM judge."""
 from __future__ import annotations
 
 import json
-from typing import Any, Protocol, Sequence
+from collections.abc import Sequence
+from typing import Any, Protocol
 
-import numpy as np
 import jsonschema
+import numpy as np
 
 from model_monitor.contracts.behavioral.evaluation import EvaluationResult
 from model_monitor.utils.stats import cosine_similarity
@@ -31,7 +33,7 @@ class JsonValidityEvaluator:
     """
     Checks that the model output is parseable as JSON.
 
-    The simplest possible evaluator: its purpose is to verify
+    The simplest possible evaluator - its purpose is to verify
     the behavioral contract plumbing works end-to-end before adding
     semantic evaluators.
     """
