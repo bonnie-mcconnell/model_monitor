@@ -1,12 +1,15 @@
-import pandas as pd
+from __future__ import annotations
+
 from pathlib import Path
 
-from model_monitor.training.retrain_pipeline import RetrainPipeline
+import pandas as pd
+
 from model_monitor.storage.model_store import ModelStore
+from model_monitor.training.retrain_pipeline import RetrainPipeline
 from model_monitor.training.train import train_model
 
 
-def test_retrain_pipeline_promotes_on_improvement(tmp_path: Path):
+def test_retrain_pipeline_promotes_on_improvement(tmp_path: Path) -> None:
     """
     Full integration test:
     - trains an initial model
