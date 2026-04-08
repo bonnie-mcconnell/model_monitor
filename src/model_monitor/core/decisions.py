@@ -1,6 +1,8 @@
+"""Core domain types: DecisionType, DecisionMetadata, Decision."""
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Literal, TypedDict, cast
-
 
 DecisionType = Literal[
     "none",
@@ -27,6 +29,9 @@ class DecisionMetadata(TypedDict, total=False):
     has_labels: bool
     has_baseline: bool
     n_samples: int
+
+    # Audit trail: links the decision to the batch that produced it
+    batch_id: str
 
 
 @dataclass(frozen=True)

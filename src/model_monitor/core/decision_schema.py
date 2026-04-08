@@ -1,4 +1,6 @@
-# TODO import??
+"""JSON Schema definition for DecisionMetadata - used for API response validation."""
+from __future__ import annotations
+
 DECISION_METADATA_SCHEMA = {
     "type": "object",
     "properties": {

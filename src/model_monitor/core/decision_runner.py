@@ -1,12 +1,14 @@
+"""Synchronous control-plane: reads metrics, invokes engine, persists decisions."""
 from __future__ import annotations
 
 import time
-from typing import Iterable, Optional, cast
+from collections.abc import Iterable
+from typing import cast
 
 from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decisions import Decision, DecisionType
-from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.decision_store import DecisionStore
+from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
 from model_monitor.storage.model_store import ModelStore
 
 
@@ -66,6 +68,13 @@ class DecisionRunner:
         for window in windows:
             summary = self._summary_store.get(window)
             if summary is None:
+                continue
+
+            # Guard against the cold-start race where MetricsSummaryORM exists
+            # but has never been populated by the aggregation loop - its
+            # trust_score column defaults to 0.0, which would trigger a spurious
+            # retrain decision on the very first pass.
+            if summary.n_batches == 0:
                 continue
 
             effective_baseline = baseline_f1 if baseline_f1 is not None else summary.avg_f1
