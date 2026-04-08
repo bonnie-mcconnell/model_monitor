@@ -140,7 +140,7 @@ def test_decision_store_persists_metadata_as_json() -> None:
 
     row = rows[0]
     assert row.metadata_json is not None, (
-        "metadata_json is None — DecisionStore.record() must serialise "
+        "metadata_json is None - DecisionStore.record() must serialise "
         "Decision.metadata to JSON for audit trail completeness."
     )
 

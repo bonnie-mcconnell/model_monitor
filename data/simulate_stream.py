@@ -12,7 +12,7 @@ class StreamSimulator:
     Offline batch stream simulator with optional feature drift
     and delayed label release.
 
-    Intended for experimentation and testing — not production inference.
+    Intended for experimentation and testing - not production inference.
     """
 
     def __init__(
