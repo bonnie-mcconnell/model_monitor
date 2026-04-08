@@ -1,6 +1,7 @@
+"""ORM model for current rolling metric summaries (one row per window)."""
 from __future__ import annotations
 
-from sqlalchemy import Float, Integer, String, Index
+from sqlalchemy import Float, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from model_monitor.storage.db import Base
