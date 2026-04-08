@@ -1,3 +1,4 @@
+"""UTC timestamp helpers."""
 from datetime import datetime, timezone
 
 
