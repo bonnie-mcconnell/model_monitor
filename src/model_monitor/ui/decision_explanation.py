@@ -1,10 +1,13 @@
+"""UI boundary adapter: construct and format Decision objects for display."""
 from __future__ import annotations
 
-from typing import Mapping, Any, Dict
+from collections.abc import Mapping
+from typing import Any
+
 from model_monitor.core.decisions import Decision, DecisionMetadata
 
 
-def _normalize_payload(payload: Mapping[Any, Any]) -> Dict[str, Any]:
+def _normalize_payload(payload: Mapping[Any, Any]) -> dict[str, Any]:
     """
     Normalize API / pandas payloads to string-keyed dicts.
 

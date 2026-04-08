@@ -1,10 +1,11 @@
+"""Streamlit monitoring dashboard - connects to the FastAPI backend."""
 from __future__ import annotations
 
-import requests
-import streamlit as st
-import pandas as pd
 from typing import Any
 
+import pandas as pd
+import requests
+import streamlit as st
 from ui.decision_explanation import decision_from_api, format_decision_explanation
 
 # ---------------------------------------------------------------------
@@ -23,7 +24,8 @@ def safe_get(path: str) -> dict[str, Any] | list[dict[str, Any]] | None:
             timeout=REQUEST_TIMEOUT,
         )
         resp.raise_for_status()
-        return resp.json()
+        result: dict[str, Any] | list[dict[str, Any]] = resp.json()
+        return result
     except requests.RequestException as exc:
         st.error(f"API request failed: {path}")
         st.caption(str(exc))
