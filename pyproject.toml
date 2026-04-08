@@ -2,27 +2,78 @@
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
+# ---------------------------------------------------------------------------
+# Project metadata
+# ---------------------------------------------------------------------------
+
 [project]
 name = "model-monitor"
 version = "0.1.0"
 description = "ML model monitoring with drift detection and behavioral contracts"
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Bonnie McConnell" },
+]
+license = { text = "MIT" }
+keywords = [
+    "machine-learning",
+    "monitoring",
+    "drift-detection",
+    "mlops",
+    "behavioral-contracts",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy",
     "pandas",
     "scikit-learn",
-    "matplotlib",
-    "streamlit",
     "joblib",
     "fastapi",
     "uvicorn",
     "sqlalchemy",
     "pyyaml",
     "jsonschema",
+    "sentence-transformers>=2.7",
 ]
 
+[project.urls]
+Homepage   = "https://github.com/bonnie-mcconnell/model_monitor"
+Repository = "https://github.com/bonnie-mcconnell/model_monitor"
+Issues     = "https://github.com/bonnie-mcconnell/model_monitor/issues"
+
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "anyio", "ruff", "mypy"]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "anyio",
+    "httpx",
+    "ruff",
+    "mypy",
+    "types-PyYAML",
+    "types-requests",
+]
+ui  = ["streamlit", "matplotlib"]
+llm = ["anthropic"]
+
+[project.scripts]
+model-monitor-train = "model_monitor.training.train:main"
+model-monitor-sim   = "model_monitor.scripts.simulation_loop:main"
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
 
 [tool.setuptools.package-dir]
 "" = "src"
@@ -30,8 +81,61 @@ dev = ["pytest", "pytest-asyncio", "anyio", "ruff", "mypy"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"model_monitor" = ["py.typed", "config/*.yaml"]
+
+# ---------------------------------------------------------------------------
+# Test
+# ---------------------------------------------------------------------------
+
 [tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]
+pythonpath   = ["src"]
+testpaths    = ["tests"]
 asyncio_mode = "auto"
-markers = ["asyncio: mark test as asyncio"]
+markers      = ["asyncio: mark test as asyncio"]
+addopts      = "--cov=model_monitor --cov-report=term-missing --cov-fail-under=88"
+
+[tool.coverage.run]
+source = ["model_monitor"]
+omit = [
+    "*/ui/streamlit_app.py",
+    "*/scripts/simulation_loop.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "def main\\(\\)",
+]
+
+# ---------------------------------------------------------------------------
+# Lint
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["I001"]  # allow deferred imports in standalone scripts
+
+# ---------------------------------------------------------------------------
+# Type-check
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version         = "3.10"
+files                  = ["src", "tests"]
+ignore_missing_imports = true
+warn_return_any        = true
+warn_unused_ignores    = true
+
+# Test helpers (stubs, dummy classes) get a lighter touch — we care that
+# they typecheck but don't require every internal to be annotated.
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false

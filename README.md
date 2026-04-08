@@ -1,177 +1,203 @@
-# model-monitor
+# model-monitor · behavior-monitoring
 
-ML monitoring system for production models. Detects feature drift using PSI,
-tracks performance degradation across rolling windows, and triggers automated
-lifecycle actions - retraining, rollback, promotion - through a policy engine
-that is deliberately kept free of I/O and side effects.
+[![CI](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml)
+
+Production ML monitoring system with behavioral contracts for LLM output validation. Built to understand the engineering decisions that make monitoring actually work - not just track metrics, but detect when a model's behaviour has changed in ways that matter.
+
+**Two branches:**
+- [`main`](https://github.com/bonnie-mcconnell/model_monitor/tree/main) - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback
+- **`behavior-monitoring` (this branch)** - everything in main plus behavioral contracts for LLM output validation
+
+---
 
 ## Why I built this
 
-I was building out my ML portfolio and kept running into the same gap: most
-tutorials show you how to train a model, but nothing shows you what happens
-after it's deployed. Production models degrade, features drift. The model you
-shipped six months ago is quietly getting worse and nobody notices until
-something breaks. I wanted to build the system that catches that - and to
-understand the engineering trade-offs that make it actually work in production.
+Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and LLM outputs shift in tone or structure without any accuracy metric catching it. I built this to work through the real engineering decisions - not just "monitor the model" but specifically: how do you make automated decisions trustworthy enough to act on, how do you prevent a monitoring system from triggering on noise, and how do you catch behavioral drift that traditional metrics miss entirely?
 
-## Features
-
-**PSI drift detection.** Population Stability Index requires reusing the
-reference distribution's percentile bin edges when binning incoming data.
-Using fixed-width bins produces misleading scores when the reference
-distribution is skewed. The reference stats are computed once at training time
-and stored in `data/reference/reference_stats.json`.
-
-**The async/sync boundary.** The aggregation loop calls
-`asyncio.create_task()` to schedule execution without blocking monitoring.
-Putting that call inside a plain `def` was a bug in the original design -
-`create_task` requires a running event loop and raises `RuntimeError` in
-some contexts without failing loudly. Making `aggregate_once` properly
-`async` was the correct fix, not wrapping it.
-
-**Retrain idempotency.** If the system crashes mid-retrain and restarts,
-it shouldn't kick off a duplicate retrain for the same evidence window.
-The fix is a SHA-256 fingerprint of the evidence DataFrame, which is deterministic
-across restarts, collision-resistant, and doesn't require a separate
-deduplication store.
-
-**Baseline wiring.** The decision engine needs to compare current F1 against
-the deployed model's quality at promotion time, not against a rolling average
-of recent batches. I shipped a version where `f1_baseline=summary.avg_f1`,
-which made `f1_drop` always zero and meant retrain could never trigger from
-the aggregation path. Finding that bug and tracing it to the right fix
-- storing `baseline_f1` in `active.json` at promotion time - is the clearest
-example of a design decision I had to reason through rather than just write.
-
-## Architecture
-```
-aggregation → trust score → decision engine → executor
-```
-
-The **monitoring layer** records batch-level metrics and aggregates them into
-rolling windows (5m, 1h, 24h). It emits signals only; no decisions are made
-here. This separation means monitoring can't accidentally trigger actions.
-
-The **trust score** is a weighted combination of accuracy, F1, confidence,
-drift severity, and latency, bounded to [0,1]. It gives the decision engine
-a single operational signal rather than requiring it to reason about five
-independent numbers.
-
-The **decision engine** is pure policy: no I/O, no persistence, no async
-code. It receives metrics and returns an immutable `Decision` dataclass. The
-priority order is: severe drift → reject, catastrophic F1 drop → rollback,
-sustained degradation → retrain (with cooldown), N stable batches → promote.
-Being a pure function makes it trivially testable and replayable from any
-stored state.
-
-The **executor** handles all side effects asynchronously. It enforces retrain
-cooldowns, checks the idempotency key before acting, holds a lock to prevent
-concurrent retrains, and supports `dry_run` for testing.
+---
 
 ## Quick start
+
 ```bash
 pip install -e ".[dev]"
-make sim        # run the drift simulation loop
-make run        # start the FastAPI server at localhost:8000
-make test       # run the full test suite
+make test          # 306 tests, ~23 seconds
+make sim           # drift simulation loop
+make demo          # behavioral contracts end-to-end demo (downloads ~90MB model on first run)
+make run           # FastAPI server at localhost:8000
 ```
 
-## Key design decisions
+The demo is the fastest way to see the behavioral contracts system working:
 
-**PSI not KS test.** PSI is interpretable: below 0.1 is stable, above 0.2
-is severe, and these thresholds are configurable in `config/drift.yaml`.
-KS gives a p-value, which is harder to threshold deterministically in a
-policy engine. PSI also handles multivariate drift by averaging per-feature
-scores.
+```
+━━━  model_monitor behavioral contracts demo  ━━━
 
-**File-based model store.** Atomic rename - write to `.tmp`, then
-`Path.replace()` - gives crash safety without a database. The trade-off is
-that it doesn't work across multiple processes without a distributed lock,
-which is fine for a single-node deployment but would need redesigning for
-anything that scales horizontally.
+  ✓  ACCEPT  [good response]
+  ✗  BLOCK   [terse response]       ← tone drift detected
+  ✗  BLOCK   [missing field]        ← schema violation
+  ✗  BLOCK   [not JSON]             ← structural failure
+```
 
-**Baseline F1 at promotion time.** The baseline is written to `active.json`
-when a model is promoted and read once per aggregation pass. This means the
-decision engine always compares against what the deployed model was actually
-measured at, not what it's doing today.
+---
 
-**Decision engine has no I/O.** All state the engine needs is passed in as
-arguments. This makes decisions replayable: given the same inputs, you always
-get the same decision. It also means the engine can be tested without any
-mocking of databases or file systems.
+## Architecture
 
-## What I'd do differently
+```mermaid
+flowchart LR
+    subgraph Inference["Inference pipeline"]
+        IN[predict_batch] --> MS[(MetricsStore)]
+    end
 
-Crash recovery across restarts is incomplete. If the system dies mid-retrain,
-the snapshot's `retrain_key` is lost and the idempotency check can't run on
-restart. A proper fix would persist snapshots to the database before
-execution, not after.
+    subgraph Monitoring["Monitoring pipeline"]
+        MS --> AGG[aggregation loop]
+        AGG --> TS[trust score]
+        TS --> DE[decision engine]
+        DE --> EX[executor]
+    end
 
-The dashboard currently has no endpoint that writes `MetricRecord` rows from
-external inference, it only reads. Connecting a real inference pipeline
-would require an ingest endpoint and authentication. That's the obvious next
-step to make this useful beyond the simulation.
+    subgraph Behavioral["Behavioral pipeline"]
+        LLM[LLM output] --> BCR[BehavioralContractRunner]
+        BCR --> DR[(BehavioralDecisionStore)]
+        DR -->|violation_rate| TS
+    end
 
-## Behavioral contracts (this branch)
+    EX -->|promote / retrain / rollback| Model[(model store)]
+    EX -->|audit| DS[(DecisionStore)]
+```
 
-Classical ML monitoring catches statistical drift and performance degradation.
-It doesn't catch the failure modes that matter most for language models: tone
-shifting between versions, structured output silently breaking after a
-fine-tune, safety posture eroding, instruction adherence degrading. These
-failures don't show up in accuracy or latency metrics.
+### Classical monitoring pipeline
 
-This branch adds behavioral contracts: explicit, versioned, enforceable
-guarantees about how a model must behave in production.
+The **monitoring layer** records batch-level metrics to SQLite and aggregates them across rolling windows (5m, 1h, 24h). It emits signals only - no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
 
-A contract is a YAML file listing guarantees and the evaluator that checks
-each one:
+The **trust score** is a weighted combination of six components bounded to [0, 1]:
+
+| Component | Weight | Source |
+|---|---|---|
+| Accuracy | 30% (scaled) | batch accuracy_score |
+| F1 | 25% (scaled) | batch f1_score |
+| Confidence | 15% (scaled) | mean max class probability |
+| Drift | 20% (scaled) | PSI converted to [0, 1] |
+| Latency | 10% (scaled) | decision time in ms |
+| Behavioral | 15% (additive) | contract violation rate |
+
+The behavioral component is additive rather than a post-hoc penalty so its contribution is transparent in `TrustScoreComponents` and auditable in dashboards. The five performance weights scale down proportionally to accommodate it, preserving their relative importance.
+
+The **decision engine** is pure policy: no I/O, no persistence, no async code. Priority order: severe drift → reject, catastrophic F1 drop → rollback, sustained degradation → retrain (with cooldown), N stable batches → promote. Being a pure function makes every decision replayable from stored state.
+
+The **executor** handles all side effects asynchronously. SHA-256 fingerprint of the evidence DataFrame provides crash-safe retrain idempotency. An asyncio lock prevents concurrent retrains.
+
+### Behavioral contracts pipeline
+
+Classical monitoring cannot catch LLM failure modes: tone shifting between versions, structured output breaking after a fine-tune, instruction adherence degrading. These do not show up in accuracy or latency.
+
+Behavioral contracts are explicit, versioned, enforceable guarantees about how a model must behave. A contract is a YAML file:
+
 ```yaml
-contract_id: support_response
+contract_id: support_response_v1
 version: "1.0"
-scope: chat_completion
+scope: customer_support_responses
 
 guarantees:
   - id: valid_json
-    description: Response must be valid JSON
-    severity: CRITICAL
+    description: Every response must be valid JSON
+    severity: critical
     evaluator: json_validity
 
   - id: response_schema_v1
-    description: Response must conform to SupportResponse schema v1
-    severity: CRITICAL
-    evaluator: json_schema_v1
+    description: Response must conform to the SupportResponse schema
+    severity: critical
+    evaluator: json_schema_support_v1
+
+  - id: tone_consistency_v1
+    description: Response tone must match reference distribution
+    severity: high
+    evaluator: tone_consistency_support_v1
 ```
 
-The `BehavioralContractRunner` evaluates each model output against every
-guarantee, produces severity-scored results, and passes them to a
-`DecisionPolicy`. The `StrictBehaviorPolicy` blocks on any CRITICAL failure
-and warns on two or more HIGH failures. Severity uses explicit equality
-comparison rather than `>=` because Python `Enum` doesn't support ordering
-by default - using `>=` would silently pass on any severity level.
+Four evaluators are implemented:
 
-Every decision is recorded as an immutable `DecisionRecord` with full
-provenance: which evaluator ran, which version, what the output was, what
-the outcome was. This makes behavioral regressions auditable and replayable
-- you can diff two `DecisionRecord`s from consecutive model versions to see
-exactly what changed.
+| Evaluator | Type | Checks |
+|---|---|---|
+| `JsonValidityEvaluator` | Structural | Output parses as JSON |
+| `JsonSchemaEvaluator` | Structural | Output conforms to a JSON Schema bound at construction |
+| `ToneConsistencyEvaluator` | Semantic | Cosine similarity between output embedding and centroid of reference embeddings ≥ threshold |
+| `LLMJudgeEvaluator` | Semantic (LLM-as-judge) | Structured consistency verdict from an LLM judge; uses injected `LLMClient` Protocol - `MockLLMClient` in tests, `AnthropicLLMClient` in production |
 
-Two evaluators are implemented: `JsonValidityEvaluator` checks that output
-parses as JSON. `JsonSchemaEvaluator` validates output against a JSON Schema
-bound at construction time - one evaluator instance per schema version, which
-makes the registry append-only rather than mutable. The schema is validated
-at construction time so a malformed schema fails immediately rather than
-silently passing every evaluation.
+`ToneConsistencyEvaluator` detects when a model update has changed the voice of a system without a deliberate decision to do so. It uses `all-MiniLM-L6-v2` locally - no API key, no network call per evaluation, ~10ms on CPU.
 
-**What I'd do differently.** The `trust_score` in the main monitoring layer
-doesn't yet incorporate behavioral violation rates. There's a TODO in
-`trust_score.py` for a `behavioral_penalty` component. Wiring that in would
-mean a model that's passing accuracy metrics but failing behavioral contracts
-gets a lower trust score and triggers the policy engine, which is the actual
-goal.
+The encoder is injected via a `TextEncoder` Protocol rather than constructed inside the evaluator. This means tests inject a deterministic stub (the full test suite runs in ~10 seconds with no model download) and production can swap encoders without touching the evaluator class.
 
-**What's next.** An LLM-as-judge evaluator that calls the Anthropic API to
-assess tone consistency and instruction adherence across model versions. That
-evaluator would take two outputs (one from the reference model, one from the
-candidate) and return a structured comparison. Combined with the contract
-system already here, it would give a full behavioral regression test suite
-that runs automatically on every promotion.
+`BehavioralContractRunner` produces an immutable `DecisionRecord` with full provenance per evaluation: evaluator ID, version, output, outcome, timestamp. `diff_decisions` compares two consecutive records to surface exactly what changed between model versions.
+
+### Ingest API
+
+`POST /metrics/ingest` connects the system to a real inference pipeline. Authenticated via `X-API-Key` header against the `MONITOR_API_KEY` environment variable. Returns 503 if the variable is unset (endpoint administratively disabled), 401 for wrong key, 422 for malformed payload. Metric fields are range-validated - `accuracy` and `f1` must be in [0, 1] so callers cannot silently corrupt the trust score.
+
+```bash
+export MONITOR_API_KEY=your-secret-key
+curl -s -X POST http://localhost:8000/metrics/ingest \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $MONITOR_API_KEY" \
+  -d '{
+    "batch_id": "batch_001",
+    "n_samples": 512,
+    "accuracy": 0.91,
+    "f1": 0.89,
+    "avg_confidence": 0.84,
+    "drift_score": 0.04,
+    "decision_latency_ms": 120.0,
+    "action": "none",
+    "reason": "within thresholds"
+  }'
+# {"accepted":true,"batch_id":"batch_001","timestamp":1712000000.0}
+```
+
+The aggregation loop picks up the record on its next pass (every 60 seconds) and folds it into the rolling trust score and decision pipeline.
+
+---
+
+## Key design decisions
+
+**`AlertCooldownTracker` is a class, not a module-level dict.** The original alerting module used `_last_alert_ts: dict[str, float] = {}` at module scope. This meant two things: tests had to reach into module internals to reset state between runs (`alerting_module._last_alert_ts.clear()`), and any code path that wanted a fresh cooldown context could not get one without monkey-patching. Replacing it with `AlertCooldownTracker` makes the state injectable - tests pass a fresh instance, production uses the process singleton, and the API surface is `reset()` rather than private dict access.
+
+**`DecisionAnalytics` uses `collections.Counter`, not pandas.** The original implementation imported pandas for two operations: `value_counts()` and `tail()`. Both are single lines with the standard library. The analytics layer is called from dashboards and APIs where import weight matters, and pulling in the full pandas dependency for two dict operations was unnecessary. Replaced with `Counter` and a slice.
+
+**PSI not KS test.** The original implementation imported pandas for two operations: `value_counts()` and `tail()`. Both are single lines with the standard library. The analytics layer is called from dashboards and APIs where import weight matters, and pulling in the full pandas dependency for two dict operations was unnecessary. Replaced with `Counter` and a slice. PSI is interpretable: below 0.1 is stable, above 0.2 is severe, thresholds are configurable. KS gives a p-value, which is harder to threshold deterministically in a policy engine. PSI handles multivariate drift by averaging per-feature scores.
+
+**Reference bin edges stored at training time.** PSI requires the same bin edges for both distributions. Computing them from production data each time means comparing incomparable scales. Edges are computed from the reference distribution once, stored in `data/reference/reference_stats.json`, and reused on every production batch.
+
+**Baseline F1 written at promotion time.** The decision engine compares current F1 against the baseline from `active.json` - not against a rolling average of recent batches. A rolling baseline drifts with the model, making `f1_drop` approach zero even as absolute performance collapses. Finding this bug and tracing it to the right fix (store `baseline_f1` in `active.json` at promotion, never update it) is the clearest example of a design decision I had to reason through rather than just write.
+
+**Encoder injection via Protocol.** `ToneConsistencyEvaluator` depends on a `TextEncoder` Protocol, not on `SentenceTransformer` directly. If the encoder were constructed at import time, every `import evaluators` would trigger a 90MB model download - including in CI, in tests, and in any script that imports `JsonValidityEvaluator`. Dependency injection makes the unit fast and the production encoder swappable.
+
+**Decision engine has no I/O.** All state is passed as arguments. Given the same inputs, you always get the same decision. Every decision rule is testable with a direct function call and no mocking.
+
+**Behavioral component is additive, not a post-hoc penalty.** A post-hoc penalty would be opaque - it would change the score without appearing in `TrustScoreComponents`. Making it an explicit component means dashboards and audits show its contribution alongside accuracy and F1. The five performance weights scale down proportionally, preserving their relative importance.
+
+**The test suite found three production bugs:**
+- `0.82 - 0.80` in IEEE 754 equals `0.019999...` - less than `0.02`. A candidate whose F1 improves by exactly `min_improvement` was silently rejected. Fixed with an epsilon tolerance in `compare_models`.
+- EPS smoothing in `entropy_from_labels` produced a tiny negative value for pure distributions. Shannon entropy is non-negative by definition. Fixed with `max(0.0, ...)`.
+- `dashboard.py` used `__dict__` on SQLAlchemy ORM rows, leaking `_sa_instance_state` into API responses. Fixed with `_orm_to_dict()`.
+- `RetrainPipeline` evaluated candidate F1 on training data, not held-out data - in-sample estimates favour overfit models. Fixed with a 20% validation split; both models evaluated on the same held-out set.
+- `Decision.metadata` was serialised to the audit log on every write but the `metadata_json` column did not exist - context like baseline F1 and threshold values was silently dropped. Fixed by adding `metadata_json TEXT` to `decision_history` and serialising on `record()`.
+
+---
+
+## What I'd do differently
+
+**Crash recovery for retrains is implemented** via `SnapshotStore` - a write-ahead log that persists the retrain key before execution begins. A crash during retrain leaves a `pending` record; on restart `is_retrain_key_known()` detects it and skips the duplicate. `DecisionSnapshot` itself remains in-memory for non-retrain actions (promote, rollback); those are idempotent at the model-store level anyway.
+
+**Model store is single-node.** `os.replace` is atomic within a filesystem but not across processes without a distributed lock. Horizontal scaling would require a different storage backend.
+
+**The behavioral pipeline is wired into the inference path.** `predict_batch` accepts an optional `behavioral_runner` parameter and a `behavioral_output` string. When both are provided, the contract runner evaluates the output within a configurable latency budget (`behavioral_budget_ms`, default 50ms). Evaluations that exceed the budget are logged and skipped - the inference path is never blocked by monitoring failures. The result is available on `last_behavioral_record` for the caller to persist via `BehavioralDecisionStore`.
+
+**Thresholds are hand-tuned.** The trust score weights (0.30 accuracy, 0.25 F1, etc.) and the tone consistency threshold (0.75 by default) are reasoned defaults, not learned values. A proper calibration would use historical data from a real deployment.
+
+---
+
+## Running the tests
+
+```bash
+pytest tests/ -v
+```
+
+306 tests. No network required. No API keys required. `LLMJudgeEvaluator` tests use a deterministic mock client. No model downloads in the test suite - `ToneConsistencyEvaluator` tests inject a deterministic stub encoder.
