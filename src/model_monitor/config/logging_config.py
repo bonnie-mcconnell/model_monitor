@@ -1,12 +1,14 @@
+"""Structured logging setup for the application."""
+from __future__ import annotations
+
 import logging
 import sys
-from typing import Optional
 
 
 def setup_logging(
     *,
     level: int = logging.INFO,
-    logger_name: Optional[str] = None,
+    logger_name: str | None = None,
 ) -> None:
     """
     Configure structured logging for the application.
