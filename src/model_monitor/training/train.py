@@ -1,13 +1,15 @@
+"""Model training utilities and bootstrap dataset generation."""
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Tuple
 
-import joblib # type: ignore
+import joblib
 import numpy as np
 import pandas as pd
-from sklearn.datasets import make_classification # type: ignore
-from sklearn.ensemble import RandomForestClassifier # type: ignore
-from sklearn.model_selection import train_test_split # type: ignore
+from sklearn.datasets import make_classification
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
 MODEL_PATH = Path("models/current.pkl")
 REF_PATH = Path("data/reference/reference_stats.json")
@@ -17,7 +19,7 @@ SCHEMA_PATH = Path("data/reference/feature_schema.json")
 def make_dataset(
     n_samples: int = 5_000,
     random_state: int = 42,
-) -> Tuple[pd.DataFrame, list[str]]:
+) -> tuple[pd.DataFrame, list[str]]:
     X, y = make_classification(
         n_samples=n_samples,
         n_features=10,
@@ -55,7 +57,7 @@ def train_model(df: pd.DataFrame) -> RandomForestClassifier:
 
 
 def compute_reference_stats(df: pd.DataFrame) -> dict[str, dict]:
-    stats: dict[str, dict] = {}
+    stats: dict[str, dict[str, object]] = {}
 
     for col in df.columns:
         if col == "label":
@@ -74,7 +76,7 @@ def compute_reference_stats(df: pd.DataFrame) -> dict[str, dict]:
     return stats
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     print("Generating dataset...")
     df, feature_names = make_dataset()
 
@@ -105,5 +107,5 @@ def main() -> None:
     print("Bootstrap training complete.")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

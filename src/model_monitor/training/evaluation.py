@@ -1,8 +1,13 @@
+"""Model evaluation: compute F1 score on a labeled DataFrame."""
+from __future__ import annotations
+
+from typing import Any
+
 import pandas as pd
-from sklearn.metrics import f1_score # type: ignore
+from sklearn.metrics import f1_score
 
 
-def validate_model(model, df: pd.DataFrame) -> float:
+def validate_model(model: Any, df: pd.DataFrame) -> float:
     """
     Evaluate a trained model on a labeled dataset.
 
@@ -25,5 +30,3 @@ def validate_model(model, df: pd.DataFrame) -> float:
 
     preds = model.predict(X)
     return float(f1_score(y, preds, zero_division=0))
-
-
