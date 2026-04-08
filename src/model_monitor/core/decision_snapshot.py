@@ -1,8 +1,10 @@
+"""Mutable execution-state snapshot for a single decision lifecycle."""
 # src/model_monitor/core/decision_snapshot.py
 from __future__ import annotations
 
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from model_monitor.core.decisions import DecisionType
 
@@ -36,17 +38,17 @@ class DecisionSnapshot(BaseModel):
     )
 
     # Optional execution context
-    model_version: Optional[str] = Field(
+    model_version: str | None = Field(
         default=None,
         description="Model version active at execution time",
     )
 
-    retrain_key: Optional[str] = Field(
+    retrain_key: str | None = Field(
         default=None,
         description="Unique retrain artifact key (if retrain triggered)",
     )
 
-    metadata: Dict[str, Any] = Field(
+    metadata: dict[str, Any] = Field(
         default_factory=dict,
         description="Free-form execution metadata",
     )
