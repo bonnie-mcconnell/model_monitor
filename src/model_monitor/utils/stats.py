@@ -1,3 +1,4 @@
+"""Statistical utilities: moving average, Shannon entropy, cosine similarity."""
 from __future__ import annotations
 
 import numpy as np
@@ -24,7 +25,11 @@ def entropy_from_labels(labels: np.ndarray) -> float:
     Shannon entropy of a discrete label distribution.
 
     Returns 0.0 for an empty input or a perfectly concentrated distribution.
-    The 1e-9 additive smoothing prevents log(0) for zero-probability classes.
+
+    The 1e-9 additive smoothing prevents log(0) for zero-probability classes,
+    but introduces a tiny negative bias for pure distributions
+    (e.g. -sum([1.0 * log(1.0 + 1e-9)]) = -9.99e-10). The result is clamped
+    to 0.0 to preserve the mathematical invariant that entropy is non-negative.
     """
     labels = np.asarray(labels)
     if labels.size == 0:
@@ -32,7 +37,7 @@ def entropy_from_labels(labels: np.ndarray) -> float:
 
     _, counts = np.unique(labels, return_counts=True)
     probs = counts / counts.sum()
-    return float(-np.sum(probs * np.log(probs + 1e-9)))
+    return float(max(0.0, -np.sum(probs * np.log(probs + 1e-9))))
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
