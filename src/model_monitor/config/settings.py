@@ -1,23 +1,24 @@
+"""Application configuration loaded from YAML files."""
 from __future__ import annotations
 
+from importlib.resources import as_file, files
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-import yaml
 from pydantic import BaseModel
-from importlib.resources import files, as_file
-
 
 # -------------------------------
 # Config schemas
 # -------------------------------
 
 class DriftConfig(BaseModel):
+    """PSI drift detection thresholds loaded from config/drift.yaml."""
     psi_threshold: float
     window: int
 
 
 class RetrainConfig(BaseModel):
+    """Retraining policy parameters loaded from config/retrain.yaml."""
     min_f1_gain: float
     cooldown_batches: int
     min_samples: int
@@ -25,31 +26,36 @@ class RetrainConfig(BaseModel):
 
 
 class RollbackConfig(BaseModel):
+    """Rollback trigger threshold. Hardcoded default; overridable via YAML."""
     max_f1_drop: float = 0.15
 
 
 class ModelConfig(BaseModel):
+    """Optional model metadata from config/model.yaml."""
     name: str
     version: str
     framework: str
 
 
 class AppConfig(BaseModel):
+    """Fully-loaded application configuration. Immutable after construction."""
     drift: DriftConfig
     retrain: RetrainConfig
     rollback: RollbackConfig
-    model: Optional[ModelConfig] = None
+    model: ModelConfig | None = None
 
 
 # -------------------------------
 # Loader helpers
 # -------------------------------
 
-def _load_yaml(path: Path) -> dict:
-    if not path.exists():
-        raise FileNotFoundError(f"Config not found: {path}")
-    with path.open() as f:
-        return yaml.safe_load(f)
+def _load_yaml(path: Path) -> dict[str, Any]:
+    """Load a YAML config file. Raises FileNotFoundError if missing."""
+    from model_monitor.utils.io import load_yaml as _load
+    result = _load(path)
+    if not isinstance(result, dict):
+        raise ValueError(f"Expected YAML dict at {path}, got {type(result).__name__}")
+    return result
 
 
 def _default_config_path(filename: str) -> Path:
@@ -63,14 +69,13 @@ def _default_config_path(filename: str) -> Path:
 
 def load_config(
     *,
-    drift_path: Optional[Path] = None,
-    retrain_path: Optional[Path] = None,
-    model_path: Optional[Path] = None,
+    drift_path: Path | None = None,
+    retrain_path: Path | None = None,
+    model_path: Path | None = None,
 ) -> AppConfig:
     """
     Load application configuration.
     """
-
     drift_path = drift_path or _default_config_path("drift.yaml")
     retrain_path = retrain_path or _default_config_path("retrain.yaml")
     model_path = model_path or _default_config_path("model.yaml")
