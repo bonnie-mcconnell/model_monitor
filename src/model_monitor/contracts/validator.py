@@ -1,3 +1,6 @@
+"""Pre-flight validation that all contract evaluators are registered."""
+from __future__ import annotations
+
 from model_monitor.contracts.contract import Contract
 from model_monitor.contracts.registry import EvaluatorRegistry
 

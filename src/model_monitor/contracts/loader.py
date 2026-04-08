@@ -1,3 +1,6 @@
+"""Load a Contract from a YAML file."""
+from __future__ import annotations
+
 import yaml
 
 from model_monitor.contracts.contract import Contract
@@ -5,7 +8,7 @@ from model_monitor.contracts.guarantee import Guarantee, Severity
 
 
 def load_contract_from_yaml(path: str) -> Contract:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
     guarantees = tuple(
