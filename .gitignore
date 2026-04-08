@@ -65,5 +65,7 @@ coverage.xml
 # but can land locally if HF_HOME is set to project dir
 models/hub/
 
+models/active.txt
+
 # Distribution
 *.egg-info/
