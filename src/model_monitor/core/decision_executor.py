@@ -1,3 +1,4 @@
+"""Async execution layer with retrain locking and crash-safe idempotency."""
 # src/model_monitor/core/decision_executor.py
 from __future__ import annotations
 
@@ -5,12 +6,12 @@ import asyncio
 import logging
 from typing import Any
 
-from model_monitor.core.decisions import Decision
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.model_actions import ModelAction
+from model_monitor.core.decisions import Decision
 from model_monitor.core.model_action_executor_protocol import (
     ModelActionExecutorProtocol,
 )
+from model_monitor.core.model_actions import ModelAction
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
 log = logging.getLogger(__name__)
