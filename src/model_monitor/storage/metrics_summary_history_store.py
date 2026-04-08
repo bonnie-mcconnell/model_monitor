@@ -1,3 +1,4 @@
+"""Append-only history of aggregated metric summaries for trend analysis."""
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -54,5 +55,34 @@ class MetricsSummaryHistoryStore:
         except Exception:
             session.rollback()
             raise
+        finally:
+            session.close()
+
+    def list_history(
+        self,
+        *,
+        window: str,
+        limit: int = 100,
+    ) -> list[MetricsSummaryHistoryORM]:
+        """
+        Return up to ``limit`` history rows for a given aggregation window,
+        ordered oldest-first so callers receive a ready-to-plot time series.
+
+        Rows are expunged from the session before return so callers can access
+        column values after this method returns without holding an open session.
+        """
+        session: Session = self._session_factory()
+        try:
+            rows = (
+                session.query(MetricsSummaryHistoryORM)
+                .filter(MetricsSummaryHistoryORM.window == window)
+                .order_by(MetricsSummaryHistoryORM.timestamp.desc())
+                .limit(limit)
+                .all()
+            )
+            # Expunge so column values remain accessible after session.close().
+            for row in rows:
+                session.expunge(row)
+            return list(reversed(rows))
         finally:
             session.close()

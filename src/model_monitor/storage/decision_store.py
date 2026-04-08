@@ -1,20 +1,22 @@
+"""Persistence layer for operational decisions - the audit log."""
 from __future__ import annotations
 
+import json
 import time
-from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
+from model_monitor.core.decisions import Decision
 from model_monitor.storage.db import SessionLocal
 from model_monitor.storage.models.decision_record import DecisionRecordORM
-from model_monitor.core.decisions import Decision
 
 
 class DecisionStore:
     """
     Persistence layer for operational decisions.
 
-    Append-only audit log.
+    Append-only audit log. Every decision is persisted with its full
+    metadata so the audit trail is complete and queryable after the fact.
     """
 
     def __init__(self) -> None:
@@ -33,11 +35,18 @@ class DecisionStore:
         """
         Persist a decision to the audit log.
 
-        Note:
-        - Only selected scalar fields are persisted
-        - Decision.metadata is intentionally NOT stored yet
-      (reserved for future JSON / analytics layer)
+        Decision.metadata is serialised as JSON so the full context
+        (baseline_f1, thresholds, cooldown state) is recoverable from
+        the audit trail without reconstructing it from other tables.
         """
+        metadata_json: str | None = None
+        if decision.metadata:
+            try:
+                metadata_json = json.dumps(decision.metadata)
+            except (TypeError, ValueError):
+                # Non-serialisable metadata is a caller bug; log it as a
+                # string rather than silently dropping the decision record.
+                metadata_json = json.dumps({"_raw": str(decision.metadata)})
 
         session: Session = self._session_factory()
         try:
@@ -50,6 +59,7 @@ class DecisionStore:
                 f1=f1,
                 drift_score=drift_score,
                 model_version=model_version,
+                metadata_json=metadata_json,
             )
             session.add(row)
             session.commit()
@@ -62,11 +72,14 @@ class DecisionStore:
     def tail(self, limit: int = 100) -> list[DecisionRecordORM]:
         session: Session = self._session_factory()
         try:
-            return (
+            rows = (
                 session.query(DecisionRecordORM)
                 .order_by(DecisionRecordORM.timestamp.desc())
                 .limit(limit)
                 .all()
             )
+            for row in rows:
+                session.expunge(row)
+            return rows
         finally:
             session.close()

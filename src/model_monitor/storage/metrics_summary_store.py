@@ -1,7 +1,7 @@
+"""Current-state store for rolling aggregated metric summaries."""
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -70,7 +70,7 @@ class MetricsSummaryStore:
         finally:
             session.close()
 
-    def get(self, window: str) -> Optional[MetricsSummaryORM]:
+    def get(self, window: str) -> MetricsSummaryORM | None:
         session: Session = self._session_factory()
         try:
             return (
