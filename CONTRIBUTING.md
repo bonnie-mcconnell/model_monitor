@@ -13,7 +13,7 @@ the system trustworthy.
 git clone https://github.com/bonnie-mcconnell/model_monitor
 cd model_monitor
 pip install -e ".[dev]"
-make test        # 306 tests should pass on behavior-monitoring, 76 on main
+make test        # 180 tests should pass on main, 306 on behavior-monitoring
 make lint        # ruff must be clean
 make typecheck   # mypy must be clean
 ```
@@ -46,38 +46,6 @@ test should name the property it is verifying, ideally in its docstring.
 
 ---
 
-## Adding a new evaluator
-
-Evaluators are the extension point for the behavioral contracts system.
-To add one:
-
-1. Create a class in `src/model_monitor/contracts/behavioral/evaluators.py`
-   that satisfies the `GuaranteeEvaluator` Protocol:
-   ```python
-   class MyEvaluator:
-       evaluator_id = "my_evaluator"   # unique, stable across versions
-       version = "1.0"
-
-       def evaluate(self, *, output: str) -> EvaluationResult:
-           ...
-   ```
-
-2. If the evaluator has an external dependency (a model, an API client),
-   inject it via a Protocol rather than constructing it internally. See
-   `ToneConsistencyEvaluator` (injected `TextEncoder`) and
-   `LLMJudgeEvaluator` (injected `LLMClient`) for the pattern.
-
-3. Write at least four tests:
-   - Passes when output meets the guarantee
-   - Fails when output violates the guarantee
-   - Correct reason string format on failure
-   - At least one edge case (empty input, single reference, boundary value)
-
-4. Verify `isinstance(evaluator, GuaranteeEvaluator)` passes - this is
-   checked by `validate_contract` at startup.
-
----
-
 ## Adding a decision rule to the engine
 
 `DecisionEngine.decide()` evaluates rules in priority order. Before adding
@@ -98,11 +66,10 @@ The trust score is a contract: downstream systems (the decision engine,
 dashboards, alerting) depend on it staying bounded to [0, 1] and on the
 weights summing to 1.0. Before changing weights or adding components:
 
-- Run `test_weights_sum_to_one_with_default_behavioral_weight` - this must
-  still pass
-- Run `test_perfect_inputs_always_score_one_regardless_of_behavioral_weight`
-  - this verifies the scaling invariant
-- Update `ARCHITECTURE.md` trust score table with new weights
+- Verify the five performance weights still sum to 1.0
+- Verify that perfect inputs (accuracy=1, f1=1, drift=0, latency=0ms)
+  still produce a trust score of 1.0
+- Update the weight table in `ARCHITECTURE.md` and in `README.md`
 
 ---
 
@@ -112,7 +79,8 @@ Every push and PR runs:
 
 1. `ruff check src/ tests/` - no unused imports, no inline imports, no dead assignments
 2. `mypy src/model_monitor/ tests/` - no type errors in source or tests
-3. `pytest tests/ -v` - all tests pass
+3. `pytest tests/ -v --cov=model_monitor --cov-fail-under=80` - all tests pass
+   with at least 80% coverage on the testable source
 
 All three must pass. A green CI badge means all three are clean.
 
@@ -124,5 +92,7 @@ All three must pass. A green CI badge means all three are clean.
 - Pure dataclasses and Enums with no logic
 - The Streamlit UI (`ui/streamlit_app.py`) - presentation layer, no logic
 - The simulation script (`scripts/simulation_loop.py`) - integration harness
+- The FastAPI app layer (`api/`) - covered end-to-end in the behavior-monitoring
+  branch; omitted from coverage here by design
 
 Everything else with branching logic should have tests.
