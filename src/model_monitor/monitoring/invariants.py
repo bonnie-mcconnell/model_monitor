@@ -1,7 +1,8 @@
+"""Runtime invariant checks - raise loudly when monitoring data is corrupted."""
 from __future__ import annotations
 
 import math
-from typing import Mapping
+from collections.abc import Mapping
 
 
 class InvariantViolation(RuntimeError):

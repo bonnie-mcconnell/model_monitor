@@ -1,6 +1,10 @@
-from typing import Deque
-import numpy as np
+"""PSI drift detection: compute_psi and DriftMonitor."""
+from __future__ import annotations
+
 from collections import deque
+
+import numpy as np
+
 from model_monitor.config.settings import DriftConfig
 
 EPS = 1e-6
@@ -44,7 +48,7 @@ class DriftMonitor:
         self.reference = reference_features
         self.window: int = config.window
         self.threshold: float = config.psi_threshold
-        self.buffer: Deque[np.ndarray] = deque(maxlen=self.window)
+        self.buffer: deque[np.ndarray] = deque(maxlen=self.window)
 
     def update(self, X: np.ndarray) -> float:
         """

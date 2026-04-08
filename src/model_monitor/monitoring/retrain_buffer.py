@@ -1,11 +1,12 @@
+"""Evidence buffer: accumulates monitoring signals until ready to retrain."""
 from __future__ import annotations
 
-from collections import deque
-from typing import Deque, Dict, Any
-
 import hashlib
-import pandas as pd
+from collections import deque
+from typing import Any
+
 import numpy as np
+import pandas as pd
 
 
 class RetrainEvidenceBuffer:
@@ -20,7 +21,7 @@ class RetrainEvidenceBuffer:
 
     def __init__(self, min_samples: int) -> None:
         self.min_samples = min_samples
-        self._rows: Deque[Dict[str, Any]] = deque()
+        self._rows: deque[dict[str, Any]] = deque()
 
     def add_summary(
         self,
@@ -69,21 +70,25 @@ class RetrainEvidenceBuffer:
         """
         Deterministic fingerprint for retrain idempotency.
 
-        This key uniquely identifies the evidence window that
-        triggered a retrain, ensuring crash-safe idempotency.
+        This key uniquely identifies the evidence window that triggered a
+        retrain, ensuring crash-safe deduplication across restarts.
+
+        Implementation: sorts columns and rows for determinism, then hashes
+        the raw float64 values via SHA-256. We avoid pd.util.hash_pandas_object
+        because it is not documented as a stable public API and its output
+        can change across pandas versions - which would silently invalidate
+        stored keys and allow duplicate retrains after an upgrade.
         """
         if df.empty:
             raise ValueError("Cannot compute retrain key for empty DataFrame")
 
-        # Ensure deterministic ordering
+        # Sort columns and rows for determinism across different insertion orders
         df_sorted = (
             df.sort_index(axis=1)
               .sort_values(by=list(df.columns))
               .reset_index(drop=True)
         )
 
-        # Pandas → NumPy for stable hashing
-        hashed = pd.util.hash_pandas_object(df_sorted, index=True)
-        payload = hashed.to_numpy(dtype=np.uint64)
-
-        return hashlib.sha256(payload.tobytes()).hexdigest()
+        # Hash raw float64 values - stable across pandas versions
+        payload = df_sorted.to_numpy(dtype=np.float64).tobytes()
+        return hashlib.sha256(payload).hexdigest()
