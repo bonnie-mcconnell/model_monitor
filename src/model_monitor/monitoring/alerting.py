@@ -44,7 +44,7 @@ class AlertCooldownTracker:
 
 # Process-level singleton used by check_alerts().
 # Tests that need isolation should call check_alerts() via a fresh
-# AlertCooldownTracker and pass it explicitly — or reset this one via
+# AlertCooldownTracker and pass it explicitly - or reset this one via
 # the autouse fixture in test_alerting.py.
 _default_tracker = AlertCooldownTracker()
 

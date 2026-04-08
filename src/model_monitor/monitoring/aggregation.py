@@ -51,7 +51,7 @@ def _schedule_execution(
 
     asyncio.create_task fires the coroutine concurrently with the rest of the
     aggregation pass. Without a done-callback, any exception raised inside the
-    task is stored on the Task object but never surfaced — Python only prints
+    task is stored on the Task object but never surfaced - Python only prints
     a "Task exception was never retrieved" warning at GC time, which may arrive
     long after the relevant log context is gone.
     """
@@ -161,7 +161,7 @@ async def aggregate_once(
         # Drift-based reject still fires normally. This is intentional.
         effective_baseline = baseline_f1 if baseline_f1 is not None else summary.avg_f1
 
-        # Load recent actions for hysteresis — promote requires N stable batches
+        # Load recent actions for hysteresis - promote requires N stable batches
         recent_raw = decision_store.tail(limit=cfg.retrain.cooldown_batches + 5)
         recent_actions: list[DecisionType] = cast(
             list[DecisionType],
