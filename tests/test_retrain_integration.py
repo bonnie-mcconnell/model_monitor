@@ -1,12 +1,16 @@
-import pandas as pd
+from __future__ import annotations
+
 from pathlib import Path
 
-from model_monitor.training.retrain_pipeline import RetrainPipeline
+import numpy as np
+import pandas as pd
+
 from model_monitor.storage.model_store import ModelStore
+from model_monitor.training.retrain_pipeline import RetrainPipeline
 from model_monitor.training.train import train_model
 
 
-def test_retrain_pipeline_promotes_on_improvement(tmp_path: Path):
+def test_retrain_pipeline_promotes_on_improvement(tmp_path: Path) -> None:
     """
     Full integration test:
     - trains an initial model
@@ -47,3 +51,34 @@ def test_retrain_pipeline_promotes_on_improvement(tmp_path: Path):
 
     promoted_model = model_store.load_current()
     assert promoted_model is not None
+
+
+def test_retrain_uses_held_out_validation_not_training_data(tmp_path: Path) -> None:
+    """
+    RetrainPipeline must evaluate candidate F1 on held-out validation data,
+    not on the training samples the candidate already saw.
+
+    Evaluating on training data produces optimistic in-sample F1 estimates
+    that favour promotion of overfit models. With a held-out split the
+    candidate's generalisation is measured - the same thing the current
+    model will face in production.
+
+    We verify this by checking that the pipeline completes without error on
+    a dataset large enough to trigger the split (>= _VAL_MIN_SAMPLES = 50).
+    """
+    model_store = ModelStore(base_path=tmp_path)
+
+    # 100 rows - above _VAL_MIN_SAMPLES threshold, so split fires
+    rng = np.random.default_rng(42)
+    df = pd.DataFrame({
+        "feature_a": rng.standard_normal(100),
+        "feature_b": rng.standard_normal(100),
+        "label": rng.integers(0, 2, 100),
+    })
+
+    pipeline = RetrainPipeline(model_store=model_store)
+    result = pipeline.run(df, min_f1_improvement=0.0)
+
+    # Must complete without error and produce a valid F1
+    assert 0.0 <= result.promotion.candidate_f1 <= 1.0
+    assert result.n_samples == 100

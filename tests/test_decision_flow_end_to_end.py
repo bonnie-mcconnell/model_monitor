@@ -1,50 +1,47 @@
+from __future__ import annotations
+
 # tests/test_decision_flow_end_to_end.py
+import json
 import time
 import uuid
-import pytest
-import pandas as pd
+from collections.abc import Mapping
+from typing import Any
 
+import pytest
+
+from model_monitor.config.settings import load_config
 from model_monitor.core.decision_engine import DecisionEngine
-from model_monitor.core.decision_runner import DecisionRunner
 from model_monitor.core.decision_executor import DecisionExecutor
+from model_monitor.core.decision_runner import DecisionRunner
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decisions import Decision
+from model_monitor.core.decisions import Decision, DecisionMetadata
+from model_monitor.core.model_action_executor_protocol import (
+    ModelActionExecutorProtocol,
+)
+from model_monitor.core.model_actions import ModelAction
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 from model_monitor.storage.decision_store import DecisionStore
 from model_monitor.storage.metrics_summary_store import MetricsSummaryStore
-from model_monitor.config.settings import load_config
-from model_monitor.core.model_action_executor_protocol import ModelActionExecutorProtocol
-from model_monitor.core.model_actions import ModelAction
 
 
 # -----------------------------
 # Dummy executor to track calls
 # -----------------------------
 class DummyActionExecutor(ModelActionExecutorProtocol):
-    def __init__(self):
-        self.calls = []
+    def __init__(self) -> None:
+        self.calls: list[tuple[ModelAction, dict[str, Any]]] = []
 
-    def execute(self, *, action: ModelAction, context: dict):
-        self.calls.append((action, context))
-        return None
+    def execute(self, *, action: ModelAction, context: Mapping[str, Any]) -> None:
+        self.calls.append((action, dict(context)))
 
 
 @pytest.mark.asyncio
-async def test_decision_flow_end_to_end():
-    # -----------------------------
-    # Load config
-    # -----------------------------
+async def test_decision_flow_end_to_end() -> None:
     config = load_config()
 
-    # -----------------------------
-    # Stores
-    # -----------------------------
     summary_store = MetricsSummaryStore()
     decision_store = DecisionStore()
 
-    # -----------------------------
-    # Seed metrics
-    # -----------------------------
     summary_store.upsert(
         window="5m",
         n_batches=10,
@@ -56,9 +53,6 @@ async def test_decision_flow_end_to_end():
         trust_score=0.55,
     )
 
-    # -----------------------------
-    # Control plane: Decision Engine + Runner
-    # -----------------------------
     engine = DecisionEngine(config=config)
     runner = DecisionRunner(
         decision_engine=engine,
@@ -66,18 +60,13 @@ async def test_decision_flow_end_to_end():
         decision_store=decision_store,
     )
 
-    # Run runner to produce decision
     decisions = runner.run_once(windows=["5m"])
 
     assert len(decisions) == 1
     decision = decisions[0]
     assert isinstance(decision, Decision)
 
-    # -----------------------------
-    # Execution plane
-    # -----------------------------
     retrain_buffer = RetrainEvidenceBuffer(min_samples=1)
-    # Add a dummy dataframe for retrain path
     retrain_buffer.add_summary(
         accuracy=0.6,
         f1=0.45,
@@ -92,10 +81,9 @@ async def test_decision_flow_end_to_end():
         retrain_buffer=retrain_buffer,
         action_executor=action_executor,
         min_f1_improvement=config.retrain.min_f1_gain,
-        dry_run=True,  # no real side effects
+        dry_run=True,
     )
 
-    # Create snapshot for decision
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -103,15 +91,78 @@ async def test_decision_flow_end_to_end():
         status="pending",
     )
 
-    # Execute decision
     await decision_executor.execute(
         decision=decision,
         snapshot=snapshot,
     )
 
-    # -----------------------------
-    # Assertions
-    # -----------------------------
-    # The executor may skip if the retrain buffer isn't ready or the lock is held.
-    # Snapshot status is the reliable terminal signal — it must not stay "pending".
     assert snapshot.status in {"executed", "skipped", "failed"}
+
+
+# ---------------------------------------------------------------------------
+# metadata_json persistence
+# ---------------------------------------------------------------------------
+
+def test_decision_store_persists_metadata_as_json() -> None:
+    """
+    Decision.metadata must survive a round-trip through DecisionStore.
+
+    The audit trail is only useful if the context that produced a decision
+    (baseline F1, threshold at the time, cooldown state) is recoverable
+    after the fact. Verifies that record() serialises metadata and tail()
+    returns a row whose metadata_json parses back to the original dict.
+    """
+    store = DecisionStore()
+
+    metadata: DecisionMetadata = {
+        "trust_score": 0.62,
+        "f1_drop": 0.09,
+        "baseline_f1": 0.88,
+        "current_f1": 0.79,
+        "drift_score": 0.04,
+    }
+    decision = Decision(
+        action="retrain",
+        reason="Sustained performance degradation detected",
+        metadata=metadata,
+    )
+
+    store.record(
+        decision=decision,
+        batch_index=42,
+        trust_score=metadata["trust_score"],
+        f1=metadata["current_f1"],
+        drift_score=metadata["drift_score"],
+    )
+
+    rows = store.tail(limit=1)
+    assert rows, "tail() returned no rows after record()"
+
+    row = rows[0]
+    assert row.metadata_json is not None, (
+        "metadata_json is None — DecisionStore.record() must serialise "
+        "Decision.metadata to JSON for audit trail completeness."
+    )
+
+    recovered = json.loads(row.metadata_json)
+    assert recovered["trust_score"] == pytest.approx(metadata["trust_score"])
+    assert recovered["f1_drop"] == pytest.approx(metadata["f1_drop"])
+    assert recovered["baseline_f1"] == pytest.approx(metadata["baseline_f1"])
+
+
+def test_decision_store_handles_empty_metadata_gracefully() -> None:
+    """
+    A Decision with no metadata (the default) must not produce a JSON
+    error or write a spurious empty-object row.
+    """
+    store = DecisionStore()
+
+    decision = Decision(action="none", reason="System operating within thresholds")
+    store.record(decision=decision)
+
+    rows = store.tail(limit=1)
+    assert rows
+
+    row = rows[0]
+    # Empty dict → metadata_json should be None (falsy metadata is skipped)
+    assert row.metadata_json is None or row.metadata_json == "{}"

@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import time
 import uuid
+
 import pytest
 
 from model_monitor.core.decision_executor import DecisionExecutor

@@ -1,8 +1,10 @@
-from model_monitor.core.decision_engine import DecisionEngine
+from __future__ import annotations
+
 from model_monitor.config.settings import load_config
+from model_monitor.core.decision_engine import DecisionEngine
 
 
-def test_retrain_vs_rollback_boundary():
+def test_retrain_vs_rollback_boundary() -> None:
     cfg = load_config()
     engine = DecisionEngine(cfg)
 

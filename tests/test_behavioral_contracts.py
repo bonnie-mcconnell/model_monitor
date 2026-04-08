@@ -1,26 +1,28 @@
-import pytest
+from __future__ import annotations
+
 import json
 
+import pytest
+
+from model_monitor.contracts.behavioral.evaluation import GuaranteeEvaluation
 from model_monitor.contracts.behavioral.evaluators import (
-    JsonValidityEvaluator,
     JsonSchemaEvaluator,
+    JsonValidityEvaluator,
 )
 from model_monitor.contracts.behavioral.policy import StrictBehaviorPolicy
-from model_monitor.contracts.behavioral.evaluation import GuaranteeEvaluation
 from model_monitor.contracts.guarantee import Severity
 from model_monitor.contracts.outcome import DecisionOutcome
 
-
 # ── JsonValidityEvaluator ─────────────────────────────────────────────────────
 
-def test_json_validity_passes_on_valid_json():
+def test_json_validity_passes_on_valid_json() -> None:
     ev = JsonValidityEvaluator()
     result = ev.evaluate(output='{"key": "value"}')
     assert result.passed is True
     assert result.reason is None
 
 
-def test_json_validity_fails_on_invalid_json():
+def test_json_validity_fails_on_invalid_json() -> None:
     ev = JsonValidityEvaluator()
     result = ev.evaluate(output="not json at all")
     assert result.passed is False
@@ -28,7 +30,7 @@ def test_json_validity_fails_on_invalid_json():
     assert "JSON" in result.reason
 
 
-def test_json_validity_fails_on_empty_string():
+def test_json_validity_fails_on_empty_string() -> None:
     ev = JsonValidityEvaluator()
     result = ev.evaluate(output="")
     assert result.passed is False
@@ -47,7 +49,7 @@ SUPPORT_SCHEMA = {
 }
 
 
-def test_json_schema_passes_on_conforming_output():
+def test_json_schema_passes_on_conforming_output() -> None:
     ev = JsonSchemaEvaluator(
         evaluator_id="json_schema_support_v1",
         schema=SUPPORT_SCHEMA,
@@ -57,7 +59,7 @@ def test_json_schema_passes_on_conforming_output():
     assert result.passed is True
 
 
-def test_json_schema_fails_on_missing_required_field():
+def test_json_schema_fails_on_missing_required_field() -> None:
     ev = JsonSchemaEvaluator(
         evaluator_id="json_schema_support_v1",
         schema=SUPPORT_SCHEMA,
@@ -68,7 +70,7 @@ def test_json_schema_fails_on_missing_required_field():
     assert result.reason is not None and "response" in result.reason
 
 
-def test_json_schema_fails_on_wrong_type():
+def test_json_schema_fails_on_wrong_type() -> None:
     ev = JsonSchemaEvaluator(
         evaluator_id="json_schema_support_v1",
         schema=SUPPORT_SCHEMA,
@@ -78,7 +80,7 @@ def test_json_schema_fails_on_wrong_type():
     assert result.passed is False
 
 
-def test_json_schema_fails_gracefully_on_invalid_json():
+def test_json_schema_fails_gracefully_on_invalid_json() -> None:
     ev = JsonSchemaEvaluator(
         evaluator_id="json_schema_support_v1",
         schema=SUPPORT_SCHEMA,
@@ -88,7 +90,7 @@ def test_json_schema_fails_gracefully_on_invalid_json():
     assert result.reason is not None
 
 
-def test_json_schema_rejects_bad_schema_at_construction():
+def test_json_schema_rejects_bad_schema_at_construction() -> None:
     with pytest.raises(Exception):
         JsonSchemaEvaluator(
             evaluator_id="bad",
@@ -109,7 +111,7 @@ def _make_evaluation(passed: bool, severity: Severity) -> GuaranteeEvaluation:
     )
 
 
-def test_policy_accepts_all_passing():
+def test_policy_accepts_all_passing() -> None:
     policy = StrictBehaviorPolicy()
     evals = [
         _make_evaluation(True, Severity.CRITICAL),
@@ -120,7 +122,7 @@ def test_policy_accepts_all_passing():
     assert reasons == ()
 
 
-def test_policy_blocks_on_critical_failure():
+def test_policy_blocks_on_critical_failure() -> None:
     policy = StrictBehaviorPolicy()
     evals = [_make_evaluation(False, Severity.CRITICAL)]
     outcome, reasons = policy.decide(guarantees=evals)
@@ -128,7 +130,7 @@ def test_policy_blocks_on_critical_failure():
     assert reasons[0].code == "critical_violation"
 
 
-def test_policy_warns_on_two_high_failures():
+def test_policy_warns_on_two_high_failures() -> None:
     policy = StrictBehaviorPolicy()
     evals = [
         _make_evaluation(False, Severity.HIGH),
@@ -138,14 +140,14 @@ def test_policy_warns_on_two_high_failures():
     assert outcome == DecisionOutcome.WARN
 
 
-def test_policy_accepts_on_one_high_failure():
+def test_policy_accepts_on_one_high_failure() -> None:
     policy = StrictBehaviorPolicy()
     evals = [_make_evaluation(False, Severity.HIGH)]
     outcome, _ = policy.decide(guarantees=evals)
     assert outcome == DecisionOutcome.ACCEPT
 
 
-def test_policy_critical_takes_precedence_over_high():
+def test_policy_critical_takes_precedence_over_high() -> None:
     policy = StrictBehaviorPolicy()
     evals = [
         _make_evaluation(False, Severity.CRITICAL),

@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 from pathlib import Path
+
 import numpy as np
 
+from model_monitor.config.settings import load_config
 from model_monitor.inference.predict import Predictor
 from model_monitor.storage.model_store import ModelStore
-from model_monitor.config.settings import load_config
 
 
 class DummyModel:
@@ -16,7 +19,7 @@ class DummyModel:
         return probs
 
 
-def test_predictor_reads_model_version_from_active_json(tmp_path: Path):
+def test_predictor_reads_model_version_from_active_json(tmp_path: Path) -> None:
     store = ModelStore(base_path=tmp_path)
     cfg = load_config()
 

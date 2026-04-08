@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from model_monitor.storage.model_store import ModelStore
 
 
-def test_rollback_switches_active_model(tmp_path: Path):
+def test_rollback_switches_active_model(tmp_path: Path) -> None:
     store = ModelStore(tmp_path)
 
     # First model

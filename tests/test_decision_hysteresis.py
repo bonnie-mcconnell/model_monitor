@@ -1,16 +1,18 @@
+from __future__ import annotations
+
 import pytest
 
-from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.config.settings import (
     AppConfig,
+    DriftConfig,
     RetrainConfig,
     RollbackConfig,
-    DriftConfig,
 )
+from model_monitor.core.decision_engine import DecisionEngine
 
 
 @pytest.fixture
-def decision_engine():
+def decision_engine() -> DecisionEngine:
     cfg = AppConfig(
         retrain=RetrainConfig(
             min_f1_gain=0.05,
@@ -29,7 +31,7 @@ def decision_engine():
     return DecisionEngine(cfg)
 
 
-def test_retrain_blocked_by_batch_cooldown(decision_engine):
+def test_retrain_blocked_by_batch_cooldown(decision_engine: DecisionEngine) -> None:
     decision_engine._last_retrain_batch = 10
 
     decision = decision_engine.decide(
@@ -45,7 +47,7 @@ def test_retrain_blocked_by_batch_cooldown(decision_engine):
     assert "cooldown" in decision.reason.lower()
 
 
-def test_retrain_blocked_by_recent_actions(decision_engine):
+def test_retrain_blocked_by_recent_actions(decision_engine: DecisionEngine) -> None:
     decision = decision_engine.decide(
         batch_index=20,
         trust_score=0.8,
@@ -59,7 +61,7 @@ def test_retrain_blocked_by_recent_actions(decision_engine):
     assert "recent" in decision.reason.lower()
 
 
-def test_promote_requires_stable_none_window(decision_engine):
+def test_promote_requires_stable_none_window(decision_engine: DecisionEngine) -> None:
     decision = decision_engine.decide(
         batch_index=30,
         trust_score=0.9,

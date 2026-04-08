@@ -4,7 +4,7 @@ Tests for ToneConsistencyEvaluator.
 All tests use a deterministic stub encoder. This is intentional:
 we are testing the evaluator's logic (centroid computation, threshold
 comparison, reason string format), not the sentence-transformers library.
-The real encoder is an injected dependency, the stub satisfies the
+The real encoder is an injected dependency - the stub satisfies the
 TextEncoder Protocol without requiring a model download.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from model_monitor.contracts.behavioral.evaluators import ToneConsistencyEvaluator
-
+from model_monitor.contracts.evaluator import GuaranteeEvaluator
 
 # ---------------------------------------------------------------------------
 # Stub encoder
@@ -234,5 +234,4 @@ def test_evaluator_satisfies_guarantee_evaluator_protocol(
     Verify the evaluator structurally satisfies the GuaranteeEvaluator Protocol
     so it can be registered without a runtime error.
     """
-    from model_monitor.contracts.evaluator import GuaranteeEvaluator
     assert isinstance(evaluator, GuaranteeEvaluator)
