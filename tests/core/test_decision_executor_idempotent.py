@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import time
 import uuid
+
 import pytest
 
 from model_monitor.core.decision_executor import DecisionExecutor
@@ -18,7 +21,7 @@ class RecordingActionExecutor:
 
 
 @pytest.mark.asyncio
-async def test_decision_executor_is_idempotent():
+async def test_decision_executor_is_idempotent() -> None:
     """
     Executing the same decision snapshot twice must not cause
     duplicate side effects.

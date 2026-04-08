@@ -1,13 +1,16 @@
-import asyncio
+from __future__ import annotations
+
 import time
 import uuid
+from collections.abc import Mapping
+from typing import Any
+
 import pytest
-from typing import Mapping, Any
 
 from model_monitor.core.decision_executor import DecisionExecutor
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.model_actions import ModelAction
 from model_monitor.core.decisions import Decision
+from model_monitor.core.model_actions import ModelAction
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
 
@@ -26,7 +29,7 @@ class DummyActionExecutor:
 
 
 @pytest.mark.asyncio
-async def test_noop_decision_executes_without_side_effects():
+async def test_noop_decision_executes_without_side_effects() -> None:
     buffer = RetrainEvidenceBuffer(min_samples=1)
     executor = DummyActionExecutor()
 
@@ -58,7 +61,7 @@ async def test_noop_decision_executes_without_side_effects():
 
 
 @pytest.mark.asyncio
-async def test_retrain_skipped_when_buffer_not_ready():
+async def test_retrain_skipped_when_buffer_not_ready() -> None:
     buffer = RetrainEvidenceBuffer(min_samples=2)
     executor = DummyActionExecutor()
 
@@ -90,7 +93,7 @@ async def test_retrain_skipped_when_buffer_not_ready():
 
 
 @pytest.mark.asyncio
-async def test_retrain_executes_when_buffer_ready():
+async def test_retrain_executes_when_buffer_ready() -> None:
     buffer = RetrainEvidenceBuffer(min_samples=1)
     buffer.add_summary(
         accuracy=0.5,
