@@ -1,6 +1,9 @@
+"""Read-only analytics over decision history for dashboards and APIs."""
 from __future__ import annotations
-from typing import Any, Sequence
-import pandas as pd
+
+from collections import Counter
+from collections.abc import Sequence
+from typing import Any
 
 from model_monitor.core.decision_history import DecisionHistory
 
@@ -8,6 +11,10 @@ from model_monitor.core.decision_history import DecisionHistory
 class DecisionAnalytics:
     """
     Read-only analytics over decision history.
+
+    Uses only the standard library - no pandas - so this layer stays
+    lightweight and importable without the 50MB pandas dependency in
+    contexts that only need counts and tail access.
 
     Used by:
     - dashboards
@@ -20,31 +27,31 @@ class DecisionAnalytics:
 
     def decision_summary(self) -> dict[str, int]:
         """
-        Return a summary count of actions.
+        Return a count of each action type seen in history.
+
+        Returns an empty dict when history is empty.
         """
         records = list(self.history)
         if not records:
             return {}
-
-        df = pd.DataFrame(records)
-
-        if "action" not in df.columns:
-            return {}
-
-        # Ensure keys are str to satisfy mypy
-        raw_summary = df["action"].astype(str).value_counts().to_dict()
-        summary: dict[str, int] = {str(k): int(v) for k, v in raw_summary.items()}
-        return summary
+        return dict(Counter(r.action for r in records))
 
     def decision_tail(self, limit: int = 100) -> Sequence[dict[str, Any]]:
         """
-        Return the last N decision records as JSON-safe dicts.
+        Return the last ``limit`` decision records as JSON-safe dicts.
+
+        Records are returned in chronological order (oldest first within
+        the window) matching the convention used by MetricsStore.tail().
         """
         records = list(self.history)
         if not records:
             return []
-
-        df = pd.DataFrame(records).tail(limit)
-
-        # Explicitly return JSON-safe dicts
-        return [{str(k): v for k, v in row.items()} for row in df.to_dict(orient="records")]
+        tail = records[-limit:] if limit < len(records) else records
+        return [
+            {
+                "action": r.action,
+                "reason": r.reason,
+                **{str(k): v for k, v in r.metadata.items()},
+            }
+            for r in tail
+        ]
