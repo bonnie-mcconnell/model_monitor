@@ -1,6 +1,8 @@
+"""FastAPI application entry point and lifespan setup."""
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from model_monitor.api import dashboard, health
