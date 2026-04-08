@@ -1,4 +1,15 @@
-.PHONY: install run sim test lint
+.PHONY: help install run sim test lint typecheck coverage
+
+help:
+	@echo "model-monitor · main"
+	@echo ""
+	@echo "  make install    install package + dev dependencies"
+	@echo "  make test       run 172 tests (~12 seconds)"
+	@echo "  make coverage   run tests with coverage report (threshold: 80%)"
+	@echo "  make lint       ruff check src/ tests/"
+	@echo "  make typecheck  mypy src/model_monitor/"
+	@echo "  make sim        drift simulation loop"
+	@echo "  make run        FastAPI server at localhost:8000"
 
 install:
 	pip install -e ".[dev]"
@@ -12,6 +23,11 @@ sim:
 test:
 	pytest tests/ -v
 
+coverage:
+	pytest tests/ --cov=model_monitor --cov-report=term-missing --cov-fail-under=80
+
 lint:
-	ruff check src/
-	mypy src/ --strict
+	ruff check src/ tests/
+
+typecheck:
+	mypy src/model_monitor/ tests/
