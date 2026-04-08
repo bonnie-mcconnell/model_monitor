@@ -1,13 +1,10 @@
 """
-Operational defaults for monitoring & retraining.
+Operational threshold constants for alerting, drift detection, and retraining policy.
 
-These are policy-level values intended for:
-- local runs
-- experiments
-- documentation
-
-Production systems should override via config.
+These are the defaults used in local runs and as documentation of intent.
+Production systems should override via config/drift.yaml and config/retrain.yaml.
 """
+from __future__ import annotations
 
 # ======================
 # Drift

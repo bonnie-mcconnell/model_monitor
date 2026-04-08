@@ -1,11 +1,12 @@
+"""MetricRecord TypedDict - canonical monitoring record schema."""
 # src/model_monitor/monitoring/types.py
 from __future__ import annotations
 
-from typing import TypedDict
-from typing import Literal
+from typing import Literal, TypedDict
 
 from model_monitor.core.decisions import DecisionType
 
+__all__ = ["DecisionType", "MetricName", "MetricRecord"]
 
 MetricName = Literal[
     "accuracy",

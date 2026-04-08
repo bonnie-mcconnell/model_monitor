@@ -1,6 +1,7 @@
+"""Bounded trust score computed from performance and behavioral signals."""
 from __future__ import annotations
 
-from typing import TypedDict, Literal, Tuple
+from typing import Literal, TypedDict
 
 
 class TrustScoreComponents(TypedDict):
@@ -60,7 +61,7 @@ def compute_trust_score(
     avg_confidence: float,
     drift_score: float,
     decision_latency_ms: float,
-) -> Tuple[float, TrustScoreComponents]:
+) -> tuple[float, TrustScoreComponents]:
     """
     Compute a bounded, explainable trust score in [0, 1].
 
@@ -92,14 +93,3 @@ def compute_trust_score(
     )
 
     return clamp(trust), components
-
-
-# TODO: add behavioural components e.g
-"""
-behavioral_penalty = clamp(
-    1.0 - behavioral_violation_rate * cfg.behavior.weight,
-    min=0.0,
-    max=1.0,
-)
-
-"""
