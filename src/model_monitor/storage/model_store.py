@@ -1,11 +1,12 @@
+"""File-based model store with atomic promotion, rollback, and archiving."""
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import joblib # type: ignore
+import joblib
 
 
 class ModelStore:
@@ -21,7 +22,7 @@ class ModelStore:
         active.json
     """
 
-    def __init__(self, base_path: Path | str = "."):
+    def __init__(self, base_path: Path | str = ".") -> None:
         base = Path(base_path)
 
         self._models_dir = base / "models"
@@ -69,7 +70,7 @@ class ModelStore:
     # --------------------------------------------------
     # Promotion
     # --------------------------------------------------
-    def promote_candidate(self, metrics: Optional[Dict[str, Any]] = None) -> str:
+    def promote_candidate(self, metrics: dict[str, Any] | None = None) -> str:
         if not self._candidate_model.exists():
             raise FileNotFoundError("No candidate model to promote")
 
@@ -130,21 +131,23 @@ class ModelStore:
     # --------------------------------------------------
     # Metadata / inspection
     # --------------------------------------------------
-    def get_active_version(self) -> Optional[str]:
+    def get_active_version(self) -> str | None:
         if not self._active_file.exists():
             return None
-        return json.loads(self._active_file.read_text()).get("version")
+        raw = json.loads(self._active_file.read_text()).get("version")
+        return str(raw) if raw is not None else None
 
-    def get_active_metadata(self) -> Dict[str, Any]:
+    def get_active_metadata(self) -> dict[str, Any]:
         if not self._active_file.exists():
             return {}
-        return json.loads(self._active_file.read_text())
+        data = json.loads(self._active_file.read_text())
+        return dict(data) if isinstance(data, dict) else {}
 
-    def list_versions(self) -> List[Dict[str, str]]:
+    def list_versions(self) -> list[dict[str, str]]:
         """
         List archived model versions (newest first).
         """
-        versions: List[Dict[str, str]] = []
+        versions: list[dict[str, str]] = []
 
         for pkl in self._archive_dir.glob("model_*.pkl"):
             version = pkl.stem.replace("model_", "")
@@ -163,7 +166,7 @@ class ModelStore:
     # --------------------------------------------------
     # Internals
     # --------------------------------------------------
-    def _write_active(self, *, version: str, metadata: Dict[str, Any]) -> None:
+    def _write_active(self, *, version: str, metadata: dict[str, Any]) -> None:
         payload = {
             "version": version,
             "active_model": self._current_model.name,
@@ -186,28 +189,38 @@ class ModelStore:
 # --------------------------------------------------
 # Thin convenience layer (module-level API)
 # --------------------------------------------------
-_default_store = ModelStore()
+# Lazy singleton: created on first call, not at import time.
+# This prevents the import side-effect of creating models/ and models/archive/
+# in whatever directory the process happens to be in when the module loads.
+_default_store: ModelStore | None = None
+
+
+def _store() -> ModelStore:
+    global _default_store
+    if _default_store is None:
+        _default_store = ModelStore()
+    return _default_store
 
 
 def load_current() -> Any:
-    return _default_store.load_current()
+    return _store().load_current()
 
 
 def save_candidate(model: Any) -> None:
-    _default_store.save_candidate(model)
+    _store().save_candidate(model)
 
 
-def promote_candidate(metrics: Dict[str, Any] | None = None) -> str:
-    return _default_store.promote_candidate(metrics)
+def promote_candidate(metrics: dict[str, Any] | None = None) -> str:
+    return _store().promote_candidate(metrics)
 
 
 def rollback(*, version: str) -> str:
-    return _default_store.rollback(version)
+    return _store().rollback(version)
 
 
-def get_active_version() -> Optional[str]:
-    return _default_store.get_active_version()
+def get_active_version() -> str | None:
+    return _store().get_active_version()
 
 
-def list_versions() -> List[Dict[str, str]]:
-    return _default_store.list_versions()
+def list_versions() -> list[dict[str, str]]:
+    return _store().list_versions()

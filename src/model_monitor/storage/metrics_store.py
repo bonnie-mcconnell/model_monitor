@@ -1,15 +1,16 @@
+"""SQLite-backed persistence for batch-level metric records with cursor pagination."""
 from __future__ import annotations
 
+import builtins
 from pathlib import Path
-from typing import List, Optional, cast
+from typing import cast
 
 from sqlalchemy import and_, create_engine, or_
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from model_monitor.monitoring.types import DecisionType, MetricRecord
 from model_monitor.storage.db import Base
 from model_monitor.storage.models.metrics_models import MetricsRecordORM
-
 
 Cursor = tuple[float, int]  # (timestamp, row id)
 
@@ -77,7 +78,7 @@ class MetricsStore:
     # --------------------------------------------------
     # Read (simple)
     # --------------------------------------------------
-    def tail(self, *, limit: int = 100) -> List[MetricRecord]:
+    def tail(self, *, limit: int = 100) -> builtins.list[MetricRecord]:
         """
         Return the most recent metrics in chronological order.
         """
@@ -94,7 +95,7 @@ class MetricsStore:
 
         return [self._to_record(r) for r in reversed(rows)]
 
-    def latest(self) -> Optional[MetricRecord]:
+    def latest(self) -> MetricRecord | None:
         rows = self.tail(limit=1)
         return rows[0] if rows else None
 
@@ -105,14 +106,14 @@ class MetricsStore:
         self,
         *,
         limit: int = 50,
-        cursor: Optional[Cursor] = None,
-        action: Optional[DecisionType] = None,
-        model: Optional[str] = None,
-        min_accuracy: Optional[float] = None,
-        min_f1: Optional[float] = None,
-        start_ts: Optional[float] = None,
-        end_ts: Optional[float] = None,
-    ) -> tuple[List[MetricRecord], Optional[Cursor]]:
+        cursor: Cursor | None = None,
+        action: DecisionType | None = None,
+        model: str | None = None,
+        min_accuracy: float | None = None,
+        min_f1: float | None = None,
+        start_ts: float | None = None,
+        end_ts: float | None = None,
+    ) -> tuple[builtins.list[MetricRecord], Cursor | None]:
         """
         Cursor-based pagination over metrics.
 
@@ -172,7 +173,7 @@ class MetricsStore:
 
         records = [self._to_record(r) for r in rows]
 
-        next_cursor: Optional[Cursor] = None
+        next_cursor: Cursor | None = None
         if has_more and rows:
             last = rows[-1]
             next_cursor = (
