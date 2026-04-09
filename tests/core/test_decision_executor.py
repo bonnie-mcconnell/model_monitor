@@ -25,7 +25,6 @@ class DummyActionExecutor:
         context: Mapping[str, Any],
     ) -> None:
         self.calls.append((action, context))
-        return None
 
 
 @pytest.mark.asyncio
@@ -39,11 +38,7 @@ async def test_noop_decision_executes_without_side_effects() -> None:
         min_f1_improvement=0.05,
     )
 
-    decision = Decision(
-        action="none",
-        reason="no-op",
-    )
-
+    decision = Decision(action="none", reason="no-op")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -51,10 +46,7 @@ async def test_noop_decision_executes_without_side_effects() -> None:
         status="pending",
     )
 
-    await decision_executor.execute(
-        decision=decision,
-        snapshot=snapshot,
-    )
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
 
     assert snapshot.status == "executed"
     assert executor.calls == []
@@ -71,11 +63,7 @@ async def test_retrain_skipped_when_buffer_not_ready() -> None:
         min_f1_improvement=0.05,
     )
 
-    decision = Decision(
-        action="retrain",
-        reason="low trust",
-    )
-
+    decision = Decision(action="retrain", reason="low trust")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -83,10 +71,7 @@ async def test_retrain_skipped_when_buffer_not_ready() -> None:
         status="pending",
     )
 
-    await decision_executor.execute(
-        decision=decision,
-        snapshot=snapshot,
-    )
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
 
     assert snapshot.status == "skipped"
     assert executor.calls == []
@@ -96,13 +81,12 @@ async def test_retrain_skipped_when_buffer_not_ready() -> None:
 async def test_retrain_executes_when_buffer_ready() -> None:
     buffer = RetrainEvidenceBuffer(min_samples=1)
     buffer.add_summary(
-        accuracy=0.5,
-        f1=0.4,
-        drift_score=0.6,
-        trust_score=0.3,
+        accuracy=0.70,
+        f1=0.68,
+        drift_score=0.15,
+        trust_score=0.55,
         timestamp=time.time(),
     )
-
     executor = DummyActionExecutor()
 
     decision_executor = DecisionExecutor(
@@ -112,11 +96,7 @@ async def test_retrain_executes_when_buffer_ready() -> None:
         dry_run=True,
     )
 
-    decision = Decision(
-        action="retrain",
-        reason="trust degraded",
-    )
-
+    decision = Decision(action="retrain", reason="degradation")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -124,9 +104,64 @@ async def test_retrain_executes_when_buffer_ready() -> None:
         status="pending",
     )
 
-    await decision_executor.execute(
-        decision=decision,
-        snapshot=snapshot,
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
+
+    assert snapshot.status == "executed"
+
+
+@pytest.mark.asyncio
+async def test_promote_decision_executes_in_dry_run() -> None:
+    """
+    For promote/rollback actions the executor must call through to the
+    action executor and mark the snapshot as executed.
+    """
+    buffer = RetrainEvidenceBuffer(min_samples=1)
+    action_executor = DummyActionExecutor()
+
+    decision_executor = DecisionExecutor(
+        retrain_buffer=buffer,
+        action_executor=action_executor,
+        min_f1_improvement=0.05,
+        dry_run=True,
     )
+
+    decision = Decision(action="promote", reason="stability conditions satisfied")
+    snapshot = DecisionSnapshot(
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
+        status="pending",
+    )
+
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
+
+    assert snapshot.status == "executed"
+
+
+@pytest.mark.asyncio
+async def test_rollback_decision_executes_in_dry_run() -> None:
+    """
+    Rollback in dry_run must reach the executor path without touching
+    the real model store.
+    """
+    buffer = RetrainEvidenceBuffer(min_samples=1)
+    action_executor = DummyActionExecutor()
+
+    decision_executor = DecisionExecutor(
+        retrain_buffer=buffer,
+        action_executor=action_executor,
+        min_f1_improvement=0.05,
+        dry_run=True,
+    )
+
+    decision = Decision(action="rollback", reason="catastrophic regression")
+    snapshot = DecisionSnapshot(
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
+        status="pending",
+    )
+
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
 
     assert snapshot.status == "executed"
