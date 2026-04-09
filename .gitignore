@@ -65,7 +65,14 @@ coverage.xml
 # but can land locally if HF_HOME is set to project dir
 models/hub/
 
-models/active.txt
-
 # Distribution
 *.egg-info/
+
+# Runtime model store artifacts (written by ModelStore at runtime, never committed)
+models/active.json
+models/active.txt
+models/candidate.pkl
+models/current.pkl
+
+# Experimental scripts in data/ - not part of the package
+data/*.py

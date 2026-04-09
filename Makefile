@@ -4,10 +4,10 @@ help:
 	@echo "model-monitor · main"
 	@echo ""
 	@echo "  make install    install package + dev dependencies"
-	@echo "  make test       run 172 tests (~12 seconds)"
+	@echo "  make test       run 180 tests (~20 seconds)"
 	@echo "  make coverage   run tests with coverage report (threshold: 80%)"
 	@echo "  make lint       ruff check src/ tests/"
-	@echo "  make typecheck  mypy src/model_monitor/"
+	@echo "  make typecheck  mypy src/model_monitor/ tests/"
 	@echo "  make sim        drift simulation loop"
 	@echo "  make run        FastAPI server at localhost:8000"
 

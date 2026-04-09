@@ -83,12 +83,11 @@ addopts      = "--cov=model_monitor --cov-report=term-missing --cov-fail-under=8
 [tool.coverage.run]
 source = ["model_monitor"]
 omit = [
-    "*/api/*",
-    "*/ui/streamlit_app.py",
-    "*/scripts/simulation_loop.py",
-    "*/monitoring/aggregation.py",
-    "*/config/logging_config.py",
-    "*/core/decision_schema.py",
+    "*/api/*",                         # FastAPI layer - tested via HTTP client on behavior-monitoring
+    "*/ui/streamlit_app.py",           # presentation layer, no logic
+    "*/scripts/simulation_loop.py",    # integration harness, not unit-testable
+    "*/monitoring/aggregation.py",     # async integration loop - full coverage on behavior-monitoring
+    "*/config/logging_config.py",      # logging setup, not logic under test
 ]
 
 [tool.coverage.report]
