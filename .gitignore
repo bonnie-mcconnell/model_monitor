@@ -61,9 +61,18 @@ coverage.xml
 *.ipynb
 
 # Sentence-transformers model cache (downloaded by demo, not committed)
-# Uses HuggingFace cache - typically ~/.cache/huggingface
+# Uses HuggingFace cache: typically ~/.cache/huggingface
 # but can land locally if HF_HOME is set to project dir
 models/hub/
 
 # Distribution
 *.egg-info/
+
+# Runtime model store artifacts (written by ModelStore at runtime, never committed)
+models/active.json
+models/active.txt
+models/candidate.pkl
+models/current.pkl
+
+# Experimental scripts in data/ - not part of the package
+data/*.py
