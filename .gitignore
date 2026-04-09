@@ -76,3 +76,7 @@ models/current.pkl
 
 # Experimental scripts in data/ - not part of the package
 data/*.py
+
+# Generated notebook outputs
+notebooks/*.png
+notebooks/*.html

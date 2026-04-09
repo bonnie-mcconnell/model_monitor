@@ -64,7 +64,8 @@ dev = [
     "types-PyYAML",
     "types-requests",
 ]
-ui  = ["streamlit", "matplotlib"]
+ui       = ["streamlit", "matplotlib"]
+notebooks = ["jupyter", "matplotlib"]  # for notebooks/
 llm = ["anthropic"]
 
 [project.scripts]
@@ -100,6 +101,7 @@ source = ["model_monitor"]
 omit = [
     "*/ui/streamlit_app.py",
     "*/scripts/simulation_loop.py",
+    "*/config/logging_config.py",   # server startup config, not unit-testable
 ]
 
 [tool.coverage.report]
