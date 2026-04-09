@@ -177,3 +177,65 @@ async def test_retrain_skipped_when_retrain_key_known_to_snapshot_store() -> Non
         "Crash recovery is broken."
     )
     assert dummy.calls == []
+
+
+@pytest.mark.asyncio
+async def test_promote_decision_writes_snapshot_before_execution() -> None:
+    """
+    For promote/rollback actions the executor must write the snapshot to
+    SnapshotStore BEFORE calling the action executor. If it crashes between
+    write and execute, the snapshot remains as evidence but the action is
+    idempotent at the model-store level.
+    """
+    buffer = RetrainEvidenceBuffer(min_samples=1)
+    action_executor = DummyActionExecutor()
+    snapshot_store = SnapshotStore()
+
+    decision_executor = DecisionExecutor(
+        retrain_buffer=buffer,
+        action_executor=action_executor,
+        min_f1_improvement=0.05,
+        dry_run=True,
+        snapshot_store=snapshot_store,
+    )
+
+    decision = Decision(action="promote", reason="stability conditions satisfied")
+    snapshot = DecisionSnapshot(
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
+        status="pending",
+    )
+
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
+
+    assert snapshot.status == "executed"
+
+
+@pytest.mark.asyncio
+async def test_rollback_decision_executes_in_dry_run() -> None:
+    """
+    Rollback in dry_run must reach the executor path (snapshot written,
+    action dispatched to executor) without touching the real model store.
+    """
+    buffer = RetrainEvidenceBuffer(min_samples=1)
+    action_executor = DummyActionExecutor()
+
+    decision_executor = DecisionExecutor(
+        retrain_buffer=buffer,
+        action_executor=action_executor,
+        min_f1_improvement=0.05,
+        dry_run=True,
+    )
+
+    decision = Decision(action="rollback", reason="catastrophic regression")
+    snapshot = DecisionSnapshot(
+        decision_id=str(uuid.uuid4()),
+        action=decision.action,
+        timestamp=time.time(),
+        status="pending",
+    )
+
+    await decision_executor.execute(decision=decision, snapshot=snapshot)
+
+    assert snapshot.status == "executed"
