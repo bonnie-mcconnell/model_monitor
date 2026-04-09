@@ -1,4 +1,6 @@
 """Pydantic request and response models for all API endpoints."""
+from __future__ import annotations
+
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field

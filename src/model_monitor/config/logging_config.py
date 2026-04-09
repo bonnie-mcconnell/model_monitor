@@ -1,4 +1,6 @@
 """Structured logging setup for the application."""
+from __future__ import annotations
+
 import logging
 import sys
 
