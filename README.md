@@ -20,10 +20,11 @@ Most ML tutorials stop at model training. The harder problem is what happens aft
 
 ```bash
 pip install -e ".[dev]"
-make test          # 306 tests, ~23 seconds
+make test          # 320 tests, ~17 seconds
 make sim           # drift simulation loop
 make demo          # behavioral contracts end-to-end demo (downloads ~90MB model on first run)
 make run           # FastAPI server at localhost:8000
+# After make sim, open notebooks/simulation_analysis.md for data analysis
 ```
 
 The demo is the fastest way to see the behavioral contracts system working:
@@ -155,13 +156,35 @@ The aggregation loop picks up the record on its next pass (every 60 seconds) and
 
 ---
 
+
+## Computational complexity
+
+The monitoring pipeline is designed to add negligible overhead to the inference path.
+
+| Operation | Complexity | Notes |
+|---|---|---|
+| PSI (single feature) | O(n log n) | histogram over n samples, dominated by sort |
+| PSI (multivariate) | O(n·d log n) | averaged across d features independently |
+| Trust score | O(1) | five fixed-weight multiplications |
+| Aggregation pass | O(w) | w = records in time window; typical w < 10,000 |
+| Retrain key (SHA-256) | O(r) | r = rows in evidence buffer |
+
+The aggregation loop runs every 60 seconds in a background asyncio task.
+`predict_batch` adds no blocking overhead: drift is computed as a running
+histogram update (O(n)), and the trust score is a fixed arithmetic expression.
+
+The behavioral evaluation budget is configurable via `behavioral_budget_ms`
+(default 50ms). `scripts/bench_evaluators.py` measures P50/P95/P99 latency
+for each evaluator on your hardware before you commit to a budget.
+
+---
 ## Key design decisions
 
 **`AlertCooldownTracker` is a class, not a module-level dict.** The original alerting module used `_last_alert_ts: dict[str, float] = {}` at module scope. This meant two things: tests had to reach into module internals to reset state between runs (`alerting_module._last_alert_ts.clear()`), and any code path that wanted a fresh cooldown context could not get one without monkey-patching. Replacing it with `AlertCooldownTracker` makes the state injectable - tests pass a fresh instance, production uses the process singleton, and the API surface is `reset()` rather than private dict access.
 
 **`DecisionAnalytics` uses `collections.Counter`, not pandas.** The original implementation imported pandas for two operations: `value_counts()` and `tail()`. Both are single lines with the standard library. The analytics layer is called from dashboards and APIs where import weight matters, and pulling in the full pandas dependency for two dict operations was unnecessary. Replaced with `Counter` and a slice.
 
-**PSI not KS test.** The original implementation imported pandas for two operations: `value_counts()` and `tail()`. Both are single lines with the standard library. The analytics layer is called from dashboards and APIs where import weight matters, and pulling in the full pandas dependency for two dict operations was unnecessary. Replaced with `Counter` and a slice. PSI is interpretable: below 0.1 is stable, above 0.2 is severe, thresholds are configurable. KS gives a p-value, which is harder to threshold deterministically in a policy engine. PSI handles multivariate drift by averaging per-feature scores.
+**PSI not KS test.** PSI is interpretable: below 0.1 is stable, above 0.2 is severe, thresholds are configurable. KS gives a p-value, which is harder to threshold deterministically in a policy engine. PSI handles multivariate drift by averaging per-feature scores.
 
 **Reference bin edges stored at training time.** PSI requires the same bin edges for both distributions. Computing them from production data each time means comparing incomparable scales. Edges are computed from the reference distribution once, stored in `data/reference/reference_stats.json`, and reused on every production batch.
 
@@ -173,7 +196,7 @@ The aggregation loop picks up the record on its next pass (every 60 seconds) and
 
 **Behavioral component is additive, not a post-hoc penalty.** A post-hoc penalty would be opaque - it would change the score without appearing in `TrustScoreComponents`. Making it an explicit component means dashboards and audits show its contribution alongside accuracy and F1. The five performance weights scale down proportionally, preserving their relative importance.
 
-**The test suite found three production bugs:**
+**The test suite found five production bugs:**
 - `0.82 - 0.80` in IEEE 754 equals `0.019999...` - less than `0.02`. A candidate whose F1 improves by exactly `min_improvement` was silently rejected. Fixed with an epsilon tolerance in `compare_models`.
 - EPS smoothing in `entropy_from_labels` produced a tiny negative value for pure distributions. Shannon entropy is non-negative by definition. Fixed with `max(0.0, ...)`.
 - `dashboard.py` used `__dict__` on SQLAlchemy ORM rows, leaking `_sa_instance_state` into API responses. Fixed with `_orm_to_dict()`.
@@ -188,7 +211,6 @@ The aggregation loop picks up the record on its next pass (every 60 seconds) and
 
 **Model store is single-node.** `os.replace` is atomic within a filesystem but not across processes without a distributed lock. Horizontal scaling would require a different storage backend.
 
-**The behavioral pipeline is wired into the inference path.** `predict_batch` accepts an optional `behavioral_runner` parameter and a `behavioral_output` string. When both are provided, the contract runner evaluates the output within a configurable latency budget (`behavioral_budget_ms`, default 50ms). Evaluations that exceed the budget are logged and skipped - the inference path is never blocked by monitoring failures. The result is available on `last_behavioral_record` for the caller to persist via `BehavioralDecisionStore`.
 
 **Thresholds are hand-tuned.** The trust score weights (0.30 accuracy, 0.25 F1, etc.) and the tone consistency threshold (0.75 by default) are reasoned defaults, not learned values. A proper calibration would use historical data from a real deployment.
 
@@ -200,4 +222,4 @@ The aggregation loop picks up the record on its next pass (every 60 seconds) and
 pytest tests/ -v
 ```
 
-306 tests. No network required. No API keys required. `LLMJudgeEvaluator` tests use a deterministic mock client. No model downloads in the test suite - `ToneConsistencyEvaluator` tests inject a deterministic stub encoder.
+320 tests. No network required. No API keys required. `LLMJudgeEvaluator` tests use a deterministic mock client. No model downloads in the test suite - `ToneConsistencyEvaluator` tests inject a deterministic stub encoder.

@@ -9,10 +9,7 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ## [Unreleased]
 
-### Planned
-- Wire `BehavioralContractRunner` into `predict_batch` with a latency
-  budget guard (blocked on per-request SLA decision; see Architecture §
-  Known Limitations)
+No unreleased changes. See the [0.1.0] section for the current feature set.
 
 ---
 
@@ -89,7 +86,7 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 
 ### Fixed
 - **IEEE 754 float promotion** (`training/promotion.py`): `0.82 - 0.80`
-  evaluates to `0.019999...` - less than `0.02`. Candidates improving by
+  evaluates to `0.019999...` — less than `0.02`. Candidates improving by
   exactly `min_improvement` were silently rejected. Fixed with
   `_IMPROVEMENT_EPS = 1e-9`.
 - **Entropy non-negativity** (`utils/stats.py`): EPS smoothing produced
@@ -146,4 +143,4 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - FastAPI app with `/health`, `/ready`, `/dashboard/*` endpoints
 - Streamlit monitoring dashboard
 - Simulation loop: 80-batch drift scenario with live terminal output
-- 76 tests → 172 tests after cross-branch test porting and new tests
+- 76 tests → 320 tests after cross-branch test porting and new tests
