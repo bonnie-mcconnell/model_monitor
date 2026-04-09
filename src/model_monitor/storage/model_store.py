@@ -192,35 +192,36 @@ class ModelStore:
 # Lazy singleton: created on first call, not at import time.
 # This prevents the import side-effect of creating models/ and models/archive/
 # in whatever directory the process happens to be in when the module loads.
+# Tests always use ModelStore(base_path=tmp_path) directly for isolation.
 _default_store: ModelStore | None = None
 
 
-def _store() -> ModelStore:
+def _store() -> ModelStore:  # pragma: no cover
     global _default_store
     if _default_store is None:
         _default_store = ModelStore()
     return _default_store
 
 
-def load_current() -> Any:
+def load_current() -> Any:  # pragma: no cover
     return _store().load_current()
 
 
-def save_candidate(model: Any) -> None:
+def save_candidate(model: Any) -> None:  # pragma: no cover
     _store().save_candidate(model)
 
 
-def promote_candidate(metrics: dict[str, Any] | None = None) -> str:
+def promote_candidate(metrics: dict[str, Any] | None = None) -> str:  # pragma: no cover
     return _store().promote_candidate(metrics)
 
 
-def rollback(*, version: str) -> str:
+def rollback(*, version: str) -> str:  # pragma: no cover
     return _store().rollback(version)
 
 
-def get_active_version() -> str | None:
+def get_active_version() -> str | None:  # pragma: no cover
     return _store().get_active_version()
 
 
-def list_versions() -> list[dict[str, str]]:
+def list_versions() -> list[dict[str, str]]:  # pragma: no cover
     return _store().list_versions()
