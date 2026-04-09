@@ -1,4 +1,6 @@
 """ORM model registry: import all models so Base.metadata discovers every table."""
+from __future__ import annotations
+
 # Import all ORM models so Base.metadata.create_all() discovers every table.
 from model_monitor.storage.models.behavioral_record import BehavioralRecordORM
 from model_monitor.storage.models.decision_record import DecisionRecordORM

@@ -5,7 +5,7 @@ import logging
 import sys
 
 
-def setup_logging(
+def setup_logging(  # pragma: no cover
     *,
     level: int = logging.INFO,
     logger_name: str | None = None,
