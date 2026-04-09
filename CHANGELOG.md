@@ -34,4 +34,4 @@ Version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html
 - FastAPI app with `/health`, `/ready`, `/dashboard/*` endpoints
 - Streamlit monitoring dashboard
 - Simulation loop: 80-batch drift scenario with live terminal output
-- 76 tests → 180 tests after cross-branch test porting and new tests
+- 76 tests → 186 tests after cross-branch test porting and new tests

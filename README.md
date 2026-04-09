@@ -5,8 +5,8 @@
 Production ML monitoring system. Detects feature drift using PSI, tracks performance degradation across rolling windows, and triggers automated lifecycle actions - retraining, rollback, promotion - through a policy engine deliberately kept free of I/O and side effects.
 
 **Two branches:**
-- **`main` (this branch)** - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback. 180 tests.
-- [`behavior-monitoring`](https://github.com/bonnie-mcconnell/model_monitor/tree/behavior-monitoring) - everything here plus behavioral contracts for LLM output validation, `ToneConsistencyEvaluator`, `LLMJudgeEvaluator`, and a production ingest API. 306 tests.
+- **`main` (this branch)** - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback. 186 tests.
+- [`behavior-monitoring`](https://github.com/bonnie-mcconnell/model_monitor/tree/behavior-monitoring) - everything here plus behavioral contracts for LLM output validation, `ToneConsistencyEvaluator`, `LLMJudgeEvaluator`, and a production ingest API. 320 tests.
 
 ---
 
@@ -20,7 +20,7 @@ Most ML tutorials stop at model training. The harder problem is what happens aft
 
 ```bash
 pip install -e ".[dev]"
-make test        # 180 tests, ~20 seconds
+make test        # 186 tests, ~17 seconds
 make lint        # ruff check src/
 make typecheck   # mypy src/model_monitor/
 make sim         # drift simulation loop
@@ -60,6 +60,28 @@ The **executor** handles all side effects asynchronously. SHA-256 fingerprint of
 
 ---
 
+
+## Computational complexity
+
+The monitoring pipeline is designed to add negligible overhead to the inference path.
+
+| Operation | Complexity | Notes |
+|---|---|---|
+| PSI (single feature) | O(n log n) | histogram over n samples, dominated by sort |
+| PSI (multivariate) | O(n·d log n) | averaged across d features independently |
+| Trust score | O(1) | five fixed-weight multiplications |
+| Aggregation pass | O(w) | w = records in time window; typical w < 10,000 |
+| Retrain key (SHA-256) | O(r) | r = rows in evidence buffer |
+
+The aggregation loop runs every 60 seconds in a background asyncio task.
+`predict_batch` adds no blocking overhead: drift is computed as a running
+histogram update (O(n)), and the trust score is a fixed arithmetic expression.
+
+The behavioral evaluation budget is configurable via `behavioral_budget_ms`
+(default 50ms). `scripts/bench_evaluators.py` measures P50/P95/P99 latency
+for each evaluator on your hardware before you commit to a budget.
+
+---
 ## Key design decisions
 
 **PSI not KS test.** PSI is interpretable: below 0.1 is stable, above 0.2 is severe, thresholds are configurable in `config/drift.yaml`. KS gives a p-value, which is harder to threshold deterministically in a policy engine. PSI handles multivariate drift by averaging per-feature scores.

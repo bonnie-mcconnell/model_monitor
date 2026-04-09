@@ -13,7 +13,7 @@ the system trustworthy.
 git clone https://github.com/bonnie-mcconnell/model_monitor
 cd model_monitor
 pip install -e ".[dev]"
-make test        # 180 tests should pass on main, 306 on behavior-monitoring
+make test        # 186 tests should pass on main, 320 on behavior-monitoring
 make lint        # ruff must be clean
 make typecheck   # mypy must be clean
 ```
