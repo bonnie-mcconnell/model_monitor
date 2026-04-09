@@ -37,4 +37,4 @@ jobs:
           pytest tests/ -v
           --cov=model_monitor
           --cov-report=term-missing
-          --cov-fail-under=80
+          --cov-fail-under=88
