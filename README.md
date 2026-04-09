@@ -5,7 +5,7 @@
 Production ML monitoring system. Detects feature drift using PSI, tracks performance degradation across rolling windows, and triggers automated lifecycle actions - retraining, rollback, promotion - through a policy engine deliberately kept free of I/O and side effects.
 
 **Two branches:**
-- **`main` (this branch)** - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback. 172 tests.
+- **`main` (this branch)** - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback. 180 tests.
 - [`behavior-monitoring`](https://github.com/bonnie-mcconnell/model_monitor/tree/behavior-monitoring) - everything here plus behavioral contracts for LLM output validation, `ToneConsistencyEvaluator`, `LLMJudgeEvaluator`, and a production ingest API. 306 tests.
 
 ---
@@ -20,7 +20,7 @@ Most ML tutorials stop at model training. The harder problem is what happens aft
 
 ```bash
 pip install -e ".[dev]"
-make test        # 172 tests, ~12 seconds
+make test        # 180 tests, ~20 seconds
 make lint        # ruff check src/
 make typecheck   # mypy src/model_monitor/
 make sim         # drift simulation loop
@@ -80,7 +80,7 @@ The **executor** handles all side effects asynchronously. SHA-256 fingerprint of
 
 ## What I'd do differently
 
-**Crash recovery is incomplete.** `DecisionSnapshot` is in-memory. If the process dies mid-retrain, the idempotency key is lost and the next restart could trigger a duplicate retrain. The correct fix is write-ahead: persist the snapshot before execution begins, not after.
+**Crash recovery for retrains is implemented** via `SnapshotStore` - a write-ahead log that persists the snapshot before execution begins. A crash during retrain leaves a `pending` record; on restart `is_retrain_key_known()` detects it and skips the duplicate. Non-retrain actions (promote, rollback) have no snapshot persistence but are idempotent at the model-store level.
 
 **This branch has no ingest API.** Data enters only through the simulation loop. `POST /metrics/ingest` with API key authentication is implemented in the [`behavior-monitoring`](https://github.com/bonnie-mcconnell/model_monitor/tree/behavior-monitoring) branch.
 
