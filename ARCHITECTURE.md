@@ -1,4 +1,4 @@
-# model_monitor — Architecture
+# model_monitor -  Architecture
 
 ## Design goals
 
@@ -107,7 +107,7 @@ Responsibilities:
 - Compute a SHA-256 fingerprint of the retrain evidence DataFrame before
   executing; skip if the key is already known to `SnapshotStore`
 - Write the snapshot to `SnapshotStore` *before* execution begins
-  (write-ahead log pattern — see Crash safety below)
+  (write-ahead log pattern -  see Crash safety below)
 - Support `dry_run=True` for testing without real side effects
 
 ### Model store
@@ -134,7 +134,7 @@ Trains a candidate model and evaluates it on a held-out split.
 
 - **20% validation split** with `random_state=42` for reproducibility.
   Both candidate and current model are evaluated on the *same* held-out
-  set — not on the data the candidate was trained on.
+  set -  not on the data the candidate was trained on.
 - Falls back to full dataset when `n < 50` rows (a reliable 20% split
   requires at least 10 validation rows).
 - `min_f1_improvement` uses `_IMPROVEMENT_EPS = 1e-9` to handle

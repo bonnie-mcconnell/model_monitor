@@ -1,4 +1,4 @@
-"""Streamlit monitoring dashboard — connects to the FastAPI backend."""
+"""Streamlit monitoring dashboard -  connects to the FastAPI backend."""
 from __future__ import annotations
 
 from typing import Any
@@ -118,7 +118,7 @@ with col_version:
     st.info("ℹ Run `make train` then `make run` to start the server")
 
 # ---------------------------------------------------------------------------
-# Live metrics — colour-coded, with deltas
+# Live metrics -  colour-coded, with deltas
 # ---------------------------------------------------------------------------
 
 st.subheader("Latest Batch Metrics")
@@ -140,7 +140,7 @@ else:
     st.info("No metrics yet. Run `make train` then `make sim` to populate.")
 
 # ---------------------------------------------------------------------------
-# Rolling window trust scores — colour-coded
+# Rolling window trust scores -  colour-coded
 # ---------------------------------------------------------------------------
 
 st.subheader("Rolling Window Trust Scores")
@@ -203,7 +203,7 @@ else:
     st.info("Metrics history unavailable.")
 
 # ---------------------------------------------------------------------------
-# Decision history — with human-readable timestamps and action badges
+# Decision history -  with human-readable timestamps and action badges
 # ---------------------------------------------------------------------------
 
 st.subheader("Decision History")
@@ -230,7 +230,7 @@ if isinstance(decisions, list) and decisions:
                 unsafe_allow_html=True,
             )
 
-    # Table — show readable columns
+    # Table -  show readable columns
     display_cols = [c for c in ["time", "action", "reason", "trust_score", "f1",
                                 "drift_score", "model_version"] if c in ddf.columns]
     st.dataframe(ddf[display_cols], use_container_width=True, hide_index=True)
@@ -246,7 +246,7 @@ if isinstance(decisions, list) and decisions:
             st.markdown(
                 f'<div style="border-left:3px solid {colour};padding:8px 12px;'
                 f'margin:6px 0;background:#1a1a1a10;border-radius:0 4px 4px 0">'
-                f'<strong>{exp["title"]}</strong> — {exp["reason"]}<br>'
+                f'<strong>{exp["title"]}</strong> -  {exp["reason"]}<br>'
                 f'<small style="color:#888">{exp["details"]}</small></div>',
                 unsafe_allow_html=True,
             )
@@ -261,7 +261,7 @@ else:
 
 st.subheader("Decision Simulation")
 st.caption(
-    "Runs the decision engine against current metric summaries — "
+    "Runs the decision engine against current metric summaries -  "
     "no side effects, no state changes."
 )
 
@@ -275,7 +275,7 @@ if st.button("▶  Simulate next decision", type="primary"):
         st.markdown(
             f'<div style="border:1px solid {colour};padding:12px 16px;border-radius:6px">'
             f'<span style="font-size:1.3rem;font-weight:700;color:{colour}">'
-            f'{action.upper()}</span> — {result.get("reason", "")}</div>',
+            f'{action.upper()}</span> -  {result.get("reason", "")}</div>',
             unsafe_allow_html=True,
         )
         with st.expander("Full response"):

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml)
 
-Production ML monitoring system. Detects feature drift using PSI, tracks performance degradation across rolling windows, and triggers automated lifecycle actions — retraining, rollback, promotion — through a policy engine deliberately kept free of I/O and side effects.
+Production ML monitoring system. Detects feature drift using PSI, tracks performance degradation across rolling windows, and triggers automated lifecycle actions -  retraining, rollback, promotion -  through a policy engine deliberately kept free of I/O and side effects.
 
 **Two branches:**
 - **`main` (this branch)** - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback. 186 tests.
@@ -12,7 +12,7 @@ Production ML monitoring system. Detects feature drift using PSI, tracks perform
 
 ## Why I built this
 
-Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and nobody notices until a business metric breaks. I wanted to build the system that catches that — and to understand the engineering decisions that make automated monitoring trustworthy enough to act on.
+Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and nobody notices until a business metric breaks. I wanted to build the system that catches that -  and to understand the engineering decisions that make automated monitoring trustworthy enough to act on.
 
 ---
 
@@ -43,7 +43,7 @@ flowchart LR
     EX --> DS[(DecisionStore)]
 ```
 
-The **monitoring layer** records batch-level `MetricRecord`s to SQLite and aggregates them into rolling windows (5m, 1h, 24h). It emits signals only — no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
+The **monitoring layer** records batch-level `MetricRecord`s to SQLite and aggregates them into rolling windows (5m, 1h, 24h). It emits signals only -  no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
 
 The **trust score** is a weighted combination of five components bounded to [0, 1]:
 

@@ -7,7 +7,7 @@ body:
       value: |
         Before opening a feature request, check the
         [behavior-monitoring branch](https://github.com/bonnie-mcconnell/model_monitor/tree/behavior-monitoring)
-        — it may already be implemented there.
+        -  it may already be implemented there.
 
   - type: textarea
     id: problem
