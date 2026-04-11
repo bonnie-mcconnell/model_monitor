@@ -1,0 +1,37 @@
+# Model Monitor - behavior-monitoring branch
+#
+# Runs the FastAPI monitoring server in a container with persistent
+# storage for metrics, decisions, and model artifacts.
+#
+# Usage:
+#   docker compose up --build          # start the server
+#   docker compose run app make train  # train initial model (required once)
+#   docker compose run app make sim    # run drift simulation
+#
+# The server is available at http://localhost:8000 after startup.
+# Set MONITOR_API_KEY before starting to enable the ingest endpoint.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Required to enable POST /metrics/ingest.
+      # Without this the endpoint returns 503.
+      - MONITOR_API_KEY=${MONITOR_API_KEY:-}
+    volumes:
+      # Persist the SQLite database and trained models across container restarts.
+      # Without these mounts, all data is lost when the container stops.
+      - ./data/metrics:/app/data/metrics
+      - ./models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
