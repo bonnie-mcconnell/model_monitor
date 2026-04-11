@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+
+# Dev tools
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+htmlcov
+
+# Runtime artifacts (bind-mounted at runtime via docker-compose volumes)
+data/metrics/*.db
+data/metrics/*.db-shm
+data/metrics/*.db-wal
+models/*.pkl
+models/archive
+models/active.json
+models/candidate.pkl
+models/current.pkl
+
+# Notebooks and docs (not needed in image)
+notebooks
+*.md
+*.rst
+docs
+
+# Tests (not needed in production image)
+tests
+
+# Scripts and dev tooling
+scripts
+Makefile
+docker-compose.yml
