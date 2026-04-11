@@ -1,4 +1,4 @@
-# model_monitor - Architecture
+# model_monitor — Architecture
 
 ## Design goals
 
@@ -202,3 +202,18 @@ candidate F1 was measured on the same data the model was trained on, producing
 optimistic in-sample estimates that favour promotion of overfit models. Fixed by
 holding out 20% of retrain data for evaluation. Both candidate and current model
 are evaluated on the same held-out set for a fair comparison.
+**Cold-start trust score race** (`core/decision_runner.py`):
+`MetricsSummaryORM.trust_score` defaults to `0.0` before the aggregation
+loop has run. Without a guard, `DecisionRunner.run_once()` would pass
+`trust_score=0.0` to the engine on the very first pass and potentially
+trigger a spurious retrain or rollback before any real data was available.
+Fixed with `if summary.n_batches == 0: continue`.
+
+**Asyncio task exceptions swallowed** (`monitoring/aggregation.py`):
+`asyncio.create_task` schedules a coroutine but discards the returned `Task`
+object. If the executor raised an exception, Python's garbage collector would
+log a `Task exception was never retrieved` warning and the failure would not
+propagate. Fixed with `_schedule_execution()`, a helper that attaches
+`add_done_callback` to the task. The callback calls `task.result()` which
+re-raises any stored exception so executor failures are logged rather than
+silently discarded.

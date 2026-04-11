@@ -17,7 +17,6 @@ __pycache__/
 metrics/*.csv
 metrics/*.log
 metrics/*.json
-# metrics.db
 
 # Model artifacts
 models/*.pkl

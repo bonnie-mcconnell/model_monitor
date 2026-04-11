@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml)
 
-Production ML monitoring system with behavioral contracts for LLM output validation. Built to understand the engineering decisions that make monitoring actually work - not just track metrics, but detect when a model's behaviour has changed in ways that matter.
+Production ML monitoring system with behavioral contracts for LLM output validation. Built to understand the engineering decisions that make monitoring actually work — not just track metrics, but detect when a model's behaviour has changed in ways that matter.
 
 **Two branches:**
 - [`main`](https://github.com/bonnie-mcconnell/model_monitor/tree/main) - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback
@@ -12,7 +12,7 @@ Production ML monitoring system with behavioral contracts for LLM output validat
 
 ## Why I built this
 
-Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and LLM outputs shift in tone or structure without any accuracy metric catching it. I built this to work through the real engineering decisions - not just "monitor the model" but specifically: how do you make automated decisions trustworthy enough to act on, how do you prevent a monitoring system from triggering on noise, and how do you catch behavioral drift that traditional metrics miss entirely?
+Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and LLM outputs shift in tone or structure without any accuracy metric catching it. I built this to work through the real engineering decisions — not just "monitor the model" but specifically: how do you make automated decisions trustworthy enough to act on, how do you prevent a monitoring system from triggering on noise, and how do you catch behavioral drift that traditional metrics miss entirely?
 
 ---
 
@@ -21,6 +21,7 @@ Most ML tutorials stop at model training. The harder problem is what happens aft
 ```bash
 pip install -e ".[dev]"
 make test          # 320 tests, ~17 seconds
+make train         # train initial model (required once before sim/run)
 make sim           # drift simulation loop
 make demo          # behavioral contracts end-to-end demo (downloads ~90MB model on first run)
 make run           # FastAPI server at localhost:8000
@@ -67,7 +68,7 @@ flowchart LR
 
 ### Classical monitoring pipeline
 
-The **monitoring layer** records batch-level metrics to SQLite and aggregates them across rolling windows (5m, 1h, 24h). It emits signals only - no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
+The **monitoring layer** records batch-level metrics to SQLite and aggregates them across rolling windows (5m, 1h, 24h). It emits signals only — no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
 
 The **trust score** is a weighted combination of six components bounded to [0, 1]:
 
@@ -123,7 +124,7 @@ Four evaluators are implemented:
 | `ToneConsistencyEvaluator` | Semantic | Cosine similarity between output embedding and centroid of reference embeddings ≥ threshold |
 | `LLMJudgeEvaluator` | Semantic (LLM-as-judge) | Structured consistency verdict from an LLM judge; uses injected `LLMClient` Protocol - `MockLLMClient` in tests, `AnthropicLLMClient` in production |
 
-`ToneConsistencyEvaluator` detects when a model update has changed the voice of a system without a deliberate decision to do so. It uses `all-MiniLM-L6-v2` locally - no API key, no network call per evaluation, ~10ms on CPU.
+`ToneConsistencyEvaluator` detects when a model update has changed the voice of a system without a deliberate decision to do so. It uses `all-MiniLM-L6-v2` locally — no API key, no network call per evaluation, ~10ms on CPU.
 
 The encoder is injected via a `TextEncoder` Protocol rather than constructed inside the evaluator. This means tests inject a deterministic stub (the full test suite runs in ~10 seconds with no model download) and production can swap encoders without touching the evaluator class.
 

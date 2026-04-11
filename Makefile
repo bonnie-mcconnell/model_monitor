@@ -1,19 +1,24 @@
-.PHONY: help install run sim demo test lint typecheck coverage
+.PHONY: help install run train sim notebook demo test lint typecheck coverage
 
 help:
 	@echo "model-monitor · behavior-monitoring"
 	@echo ""
 	@echo "  make install    install package + dev dependencies"
+	@echo "  make train      train initial model (required before make sim or make run)"
 	@echo "  make test       run 320 tests (~17 seconds)"
 	@echo "  make coverage   run tests with coverage report (threshold: 88%)"
 	@echo "  make lint       ruff check src/ tests/"
 	@echo "  make typecheck  mypy src/model_monitor/ tests/"
 	@echo "  make demo       behavioral contracts end-to-end demo"
 	@echo "  make sim        drift simulation loop"
+	@echo "  make notebook   open the drift simulation notebook"
 	@echo "  make run        FastAPI server at localhost:8000"
 
 install:
 	pip install -e ".[dev]"
+
+train:
+	python -m model_monitor.training.train
 
 run:
 	uvicorn model_monitor.api.main:app --reload --port 8000
@@ -35,3 +40,6 @@ lint:
 
 typecheck:
 	mypy src/model_monitor/ tests/
+
+notebook:
+	jupyter notebook notebooks/drift_simulation.ipynb
