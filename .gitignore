@@ -57,7 +57,6 @@ coverage.xml
 
 # Jupyter
 .ipynb_checkpoints/
-*.ipynb
 
 # Sentence-transformers model cache (downloaded by demo, not committed)
 # Uses HuggingFace cache: typically ~/.cache/huggingface
