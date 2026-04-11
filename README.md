@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/bonnie-mcconnell/model_monitor/actions/workflows/ci.yml)
 
-Production ML monitoring system with behavioral contracts for LLM output validation. Built to understand the engineering decisions that make monitoring actually work -  not just track metrics, but detect when a model's behaviour has changed in ways that matter.
+Production ML monitoring system with behavioral contracts for LLM output validation. Built to understand the engineering decisions that make monitoring actually work - not just track metrics, but detect when a model's behaviour has changed in ways that matter.
 
 **Two branches:**
 - [`main`](https://github.com/bonnie-mcconnell/model_monitor/tree/main) - classical ML monitoring: PSI drift detection, trust score, automated retraining and rollback
@@ -12,7 +12,7 @@ Production ML monitoring system with behavioral contracts for LLM output validat
 
 ## Why I built this
 
-Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and LLM outputs shift in tone or structure without any accuracy metric catching it. I built this to work through the real engineering decisions -  not just "monitor the model" but specifically: how do you make automated decisions trustworthy enough to act on, how do you prevent a monitoring system from triggering on noise, and how do you catch behavioral drift that traditional metrics miss entirely?
+Most ML tutorials stop at model training. The harder problem is what happens after deployment: features drift, model quality degrades, and LLM outputs shift in tone or structure without any accuracy metric catching it. I built this to work through the real engineering decisions - not just "monitor the model" but specifically: how do you make automated decisions trustworthy enough to act on, how do you prevent a monitoring system from triggering on noise, and how do you catch behavioral drift that traditional metrics miss entirely?
 
 ---
 
@@ -25,7 +25,7 @@ make train         # train initial model (required once before sim/run)
 make sim           # drift simulation loop
 make demo          # behavioral contracts end-to-end demo (downloads ~90MB model on first run)
 make run           # FastAPI server at localhost:8000
-# After make sim, open notebooks/simulation_analysis.md for data analysis
+# After make sim, open notebooks/simulation_analysis.ipynb for live data analysis
 ```
 
 The demo is the fastest way to see the behavioral contracts system working:
@@ -38,6 +38,8 @@ The demo is the fastest way to see the behavioral contracts system working:
   ✗  BLOCK   [missing field]        ← schema violation
   ✗  BLOCK   [not JSON]             ← structural failure
 ```
+
+Two notebooks are included: [`notebooks/drift_simulation.ipynb`](notebooks/drift_simulation.ipynb) is self-contained with pre-computed outputs (readable on GitHub without setup), and [`notebooks/simulation_analysis.ipynb`](notebooks/simulation_analysis.ipynb) which reads live data from `data/metrics/metrics.db` after `make sim`.
 
 ---
 
@@ -68,7 +70,7 @@ flowchart LR
 
 ### Classical monitoring pipeline
 
-The **monitoring layer** records batch-level metrics to SQLite and aggregates them across rolling windows (5m, 1h, 24h). It emits signals only -  no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
+The **monitoring layer** records batch-level metrics to SQLite and aggregates them across rolling windows (5m, 1h, 24h). It emits signals only - no decisions are made here. This separation means the monitoring layer cannot accidentally trigger actions.
 
 The **trust score** is a weighted combination of six components bounded to [0, 1]:
 
@@ -124,7 +126,7 @@ Four evaluators are implemented:
 | `ToneConsistencyEvaluator` | Semantic | Cosine similarity between output embedding and centroid of reference embeddings ≥ threshold |
 | `LLMJudgeEvaluator` | Semantic (LLM-as-judge) | Structured consistency verdict from an LLM judge; uses injected `LLMClient` Protocol - `MockLLMClient` in tests, `AnthropicLLMClient` in production |
 
-`ToneConsistencyEvaluator` detects when a model update has changed the voice of a system without a deliberate decision to do so. It uses `all-MiniLM-L6-v2` locally -  no API key, no network call per evaluation, ~10ms on CPU.
+`ToneConsistencyEvaluator` detects when a model update has changed the voice of a system without a deliberate decision to do so. It uses `all-MiniLM-L6-v2` locally - no API key, no network call per evaluation, ~10ms on CPU.
 
 The encoder is injected via a `TextEncoder` Protocol rather than constructed inside the evaluator. This means tests inject a deterministic stub (the full test suite runs in ~10 seconds with no model download) and production can swap encoders without touching the evaluator class.
 
@@ -157,6 +159,24 @@ The aggregation loop picks up the record on its next pass (every 60 seconds) and
 
 ---
 
+## Docker
+
+```bash
+docker compose build
+docker compose run app make train  # train initial model once
+docker compose up                  # server at localhost:8000
+```
+
+Set `MONITOR_API_KEY` in a `.env` file or as an environment variable before
+starting to enable `POST /metrics/ingest`. Without it the endpoint returns 503.
+
+```bash
+echo "MONITOR_API_KEY=your-secret-key" > .env
+docker compose up
+```
+
+The `data/metrics/` directory and `models/` directory are bind-mounted into the
+container, so metrics and trained models persist across restarts.
 
 ## Computational complexity
 
@@ -179,6 +199,7 @@ The behavioral evaluation budget is configurable via `behavioral_budget_ms`
 for each evaluator on your hardware before you commit to a budget.
 
 ---
+
 ## Key design decisions
 
 **`AlertCooldownTracker` is a class, not a module-level dict.** The original alerting module used `_last_alert_ts: dict[str, float] = {}` at module scope. This meant two things: tests had to reach into module internals to reset state between runs (`alerting_module._last_alert_ts.clear()`), and any code path that wanted a fresh cooldown context could not get one without monkey-patching. Replacing it with `AlertCooldownTracker` makes the state injectable - tests pass a fresh instance, production uses the process singleton, and the API surface is `reset()` rather than private dict access.
@@ -197,12 +218,13 @@ for each evaluator on your hardware before you commit to a budget.
 
 **Behavioral component is additive, not a post-hoc penalty.** A post-hoc penalty would be opaque - it would change the score without appearing in `TrustScoreComponents`. Making it an explicit component means dashboards and audits show its contribution alongside accuracy and F1. The five performance weights scale down proportionally, preserving their relative importance.
 
-**The test suite found five production bugs:**
-- `0.82 - 0.80` in IEEE 754 equals `0.019999...` - less than `0.02`. A candidate whose F1 improves by exactly `min_improvement` was silently rejected. Fixed with an epsilon tolerance in `compare_models`.
-- EPS smoothing in `entropy_from_labels` produced a tiny negative value for pure distributions. Shannon entropy is non-negative by definition. Fixed with `max(0.0, ...)`.
-- `dashboard.py` used `__dict__` on SQLAlchemy ORM rows, leaking `_sa_instance_state` into API responses. Fixed with `_orm_to_dict()`.
-- `RetrainPipeline` evaluated candidate F1 on training data, not held-out data - in-sample estimates favour overfit models. Fixed with a 20% validation split; both models evaluated on the same held-out set.
-- `Decision.metadata` was serialised to the audit log on every write but the `metadata_json` column did not exist - context like baseline F1 and threshold values was silently dropped. Fixed by adding `metadata_json TEXT` to `decision_history` and serialising on `record()`.
+**The test suite found six production bugs:**
+- `0.82 - 0.80` in IEEE 754 equals `0.019999...` - less than `0.02`. A candidate whose F1 improves by exactly `min_improvement` was silently rejected. Fixed with `_IMPROVEMENT_EPS = 1e-9`.
+- EPS smoothing in `entropy_from_labels` produced a tiny negative result for pure distributions. Shannon entropy is non-negative by definition. Fixed with `max(0.0, ...)`.
+- `dashboard.py` used `__dict__` on SQLAlchemy ORM rows, leaking `_sa_instance_state` into API responses. Fixed with `_orm_to_dict()` which reads only mapped column values.
+- `RetrainPipeline` evaluated candidate F1 on the training data it was trained on - in-sample estimates favour overfit models. Fixed with a 20% held-out validation split.
+- `Decision.metadata` was silently dropped on every write - context like baseline F1 and the active threshold was lost from the audit log. Fixed by adding `metadata_json TEXT` to `decision_history`.
+- `MetricsSummaryORM.trust_score` defaults to `0.0` before any data is recorded. Without a guard the first aggregation pass could fire a spurious retrain on an empty database. Fixed with `if summary.n_batches == 0: continue`.
 
 ---
 
@@ -211,7 +233,6 @@ for each evaluator on your hardware before you commit to a budget.
 **Crash recovery for retrains is implemented** via `SnapshotStore` - a write-ahead log that persists the retrain key before execution begins. A crash during retrain leaves a `pending` record; on restart `is_retrain_key_known()` detects it and skips the duplicate. `DecisionSnapshot` itself remains in-memory for non-retrain actions (promote, rollback); those are idempotent at the model-store level anyway.
 
 **Model store is single-node.** `os.replace` is atomic within a filesystem but not across processes without a distributed lock. Horizontal scaling would require a different storage backend.
-
 
 **Thresholds are hand-tuned.** The trust score weights (0.30 accuracy, 0.25 F1, etc.) and the tone consistency threshold (0.75 by default) are reasoned defaults, not learned values. A proper calibration would use historical data from a real deployment.
 
@@ -224,3 +245,5 @@ pytest tests/ -v
 ```
 
 320 tests. No network required. No API keys required. `LLMJudgeEvaluator` tests use a deterministic mock client. No model downloads in the test suite - `ToneConsistencyEvaluator` tests inject a deterministic stub encoder.
+
+**The underlying model is intentionally simple** - a `RandomForestClassifier` on `sklearn.datasets.make_classification` data with features `f0..f9`. The subject of this project is the monitoring infrastructure, not the classifier.
