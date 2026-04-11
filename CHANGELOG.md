@@ -86,7 +86,7 @@ No unreleased changes. See the [0.1.0] section for the current feature set.
 
 ### Fixed
 - **IEEE 754 float promotion** (`training/promotion.py`): `0.82 - 0.80`
-  evaluates to `0.019999...` — less than `0.02`. Candidates improving by
+  evaluates to `0.019999...` -  less than `0.02`. Candidates improving by
   exactly `min_improvement` were silently rejected. Fixed with
   `_IMPROVEMENT_EPS = 1e-9`.
 - **Entropy non-negativity** (`utils/stats.py`): EPS smoothing produced

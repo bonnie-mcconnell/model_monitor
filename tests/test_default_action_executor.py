@@ -210,7 +210,7 @@ def test_retrain_dry_run_returns_none_without_calling_pipeline(
 def test_retrain_returns_none_when_candidate_not_promoted(tmp_path: Path) -> None:
     """
     When the retrain pipeline runs but the candidate does not outperform
-    the current model, execute() must return None — no promotion happens.
+    the current model, execute() must return None -  no promotion happens.
     """
     import numpy as np
     import pandas as pd

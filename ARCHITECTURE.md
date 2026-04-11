@@ -1,4 +1,4 @@
-# model_monitor — Architecture
+# model_monitor -  Architecture
 
 ## Design goals
 
@@ -18,7 +18,7 @@ inference → MetricsStore → aggregation loop → trust score → decision eng
 
 ### Monitoring layer
 Records batch-level `MetricRecord`s to SQLite. Aggregates them into rolling
-windows (5m, 1h, 24h). Emits signals only — no decisions are made here.
+windows (5m, 1h, 24h). Emits signals only -  no decisions are made here.
 This separation means the monitoring layer cannot accidentally trigger actions.
 
 ### Trust score
@@ -49,7 +49,7 @@ and returns an immutable `Decision`. Priority order:
 4. N consecutive stable batches → **promote**
 5. Default → **none**
 
-Behavioral signals enter through the trust score — no separate code path needed.
+Behavioral signals enter through the trust score -  no separate code path needed.
 
 ### Decision executor
 Async-only execution layer. Enforces retrain cooldowns, checks SHA-256
@@ -59,7 +59,7 @@ retrains, supports dry_run for testing. All side effects are isolated here.
 ### Model store
 File-based, crash-safe via atomic rename (`os.replace`). Supports promotion,
 rollback, and archiving. Baseline F1 is written to `active.json` at promotion
-time and read once per aggregation pass — never inferred from rolling averages.
+time and read once per aggregation pass -  never inferred from rolling averages.
 
 ---
 
@@ -82,7 +82,7 @@ never mutated at runtime.
 ### EvaluatorRegistry
 Append-only map of evaluator ID → evaluator instance. Duplicate registration
 raises immediately. Unknown evaluator ID raises at evaluation time, not silently
-passes. Evaluators satisfy the `GuaranteeEvaluator` Protocol — no inheritance
+passes. Evaluators satisfy the `GuaranteeEvaluator` Protocol -  no inheritance
 required.
 
 ### Evaluators (implemented)
@@ -174,7 +174,7 @@ malformed payload (handled automatically by Pydantic).
 ## Bugs found and fixed by the test suite
 
 **Floating point promotion threshold** (`training/promotion.py`): `0.82 - 0.80`
-evaluates to `0.019999...` in IEEE 754 — less than `0.02`. Without an epsilon
+evaluates to `0.019999...` in IEEE 754 -  less than `0.02`. Without an epsilon
 tolerance, a candidate whose F1 improves by exactly `min_improvement` would
 be silently rejected. Fixed with `_IMPROVEMENT_EPS = 1e-9`.
 

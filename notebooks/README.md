@@ -4,7 +4,7 @@ Two notebooks covering different use cases.
 
 ## `drift_simulation.ipynb`
 
-Self-contained walkthrough using synthetic data. No prior setup needed — runs
+Self-contained walkthrough using synthetic data. No prior setup needed -  runs
 without a server, without a trained model, without any prior `make` commands.
 All outputs are pre-computed and embedded so you can read it on GitHub without
 running anything.
@@ -38,5 +38,5 @@ jupyter notebook notebooks/simulation_analysis.ipynb
 |---|---|---|
 | **Data source** | Synthetic, self-contained | Live `data/metrics/metrics.db` |
 | **Requires prior setup** | No | Yes (`make train && make sim`) |
-| **Pre-run outputs** | Yes — readable on GitHub | No — run locally |
+| **Pre-run outputs** | Yes -  readable on GitHub | No -  run locally |
 | **Use case** | Understand the system | Explore your own simulation |
