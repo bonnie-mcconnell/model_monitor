@@ -55,7 +55,7 @@ a rule:
 - Place it at the correct priority level (drift before regression before
   degradation before promotion)
 - Write a test that confirms it fires at the exact threshold, not just
-  "above" or "below" it - boundary conditions are where bugs live
+  "above" or "below" it — boundary conditions are where bugs live
 - Write a test that confirms the cooldown or hysteresis logic is respected
 
 ---

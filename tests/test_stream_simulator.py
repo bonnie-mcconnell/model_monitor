@@ -52,7 +52,7 @@ def test_each_batch_has_correct_shape() -> None:
     """Every batch must have exactly batch_size rows (or fewer on the last)."""
     sim = StreamSimulator(_make_df(n=100), batch_size=32)
     for X, _, _ in sim:
-        assert X.shape[1] == 2  # f0, f1 - label column stripped
+        assert X.shape[1] == 2  # f0, f1 — label column stripped
         assert len(X) <= 32
 
 

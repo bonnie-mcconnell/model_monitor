@@ -139,7 +139,7 @@ class Predictor:
                 decision metadata for end-to-end audit trail traceability.
 
         Returns:
-            (predictions, confidences, decision) - predictions and confidences
+            (predictions, confidences, decision) — predictions and confidences
             always reflect the full batch; decision reflects current system state.
         """
         if not isinstance(X, pd.DataFrame):
