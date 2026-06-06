@@ -1,4 +1,5 @@
 """ORM model for current rolling metric summaries (one row per window)."""
+
 from __future__ import annotations
 
 from sqlalchemy import Float, Index, Integer, String
@@ -22,6 +23,17 @@ class MetricsSummaryORM(Base):
     avg_drift_score: Mapped[float] = mapped_column(Float, nullable=False)
     avg_latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
     trust_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    # Average ECE across batches in this window.  Null when no calibrated
+    # batches are present (e.g. no ground-truth labels in the window).
+    avg_calibration_error: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # New monitoring signal aggregates - all nullable when the corresponding
+    # monitor is not configured or no data has been collected yet.
+    avg_output_drift_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_data_quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_conformal_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_conformal_set_size: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     updated_ts: Mapped[float] = mapped_column(Float, nullable=False)
 

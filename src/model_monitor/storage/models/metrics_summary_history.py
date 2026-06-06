@@ -1,4 +1,5 @@
 """ORM model for historical aggregated metric snapshots."""
+
 from __future__ import annotations
 
 from sqlalchemy import Float, Index, Integer, String
@@ -12,6 +13,8 @@ class MetricsSummaryHistoryORM(Base):
     Append-only historical record of aggregated metric summaries.
 
     One row per aggregation window per aggregation run.
+    New monitoring signal columns are nullable so existing databases upgrade
+    cleanly - see storage/migrations.py migrations 8 and 9.
     """
 
     __tablename__ = "metrics_summary_history"
@@ -28,6 +31,12 @@ class MetricsSummaryHistoryORM(Base):
     avg_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     avg_drift_score: Mapped[float] = mapped_column(Float, nullable=False)
     avg_latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
+
+    # New monitoring signal columns - all nullable for backward compatibility.
+    avg_output_drift_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_data_quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_conformal_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_conformal_set_size: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 Index(

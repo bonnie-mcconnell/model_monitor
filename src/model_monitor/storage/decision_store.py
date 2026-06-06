@@ -1,13 +1,16 @@
 """Persistence layer for operational decisions - the audit log."""
+
 from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, func
+from sqlalchemy.orm import Session, sessionmaker
 
 from model_monitor.core.decisions import Decision
-from model_monitor.storage.db import SessionLocal
+from model_monitor.storage.db import Base, SessionLocal
 from model_monitor.storage.models.decision_record import DecisionRecordORM
 
 
@@ -17,10 +20,26 @@ class DecisionStore:
 
     Append-only audit log. Every decision is persisted with its full
     metadata so the audit trail is complete and queryable after the fact.
+
+    Args:
+        db_path: optional path to the SQLite database file.  When supplied,
+                 a dedicated engine and session factory are created so the
+                 store is fully isolated from the process-level default (used
+                 in tests that need a clean database per test).  When absent,
+                 the module-level ``SessionLocal`` is used (production path).
     """
 
-    def __init__(self) -> None:
-        self._session_factory = SessionLocal
+    def __init__(self, db_path: Path | str | None = None) -> None:
+        if db_path is not None:
+            path = Path(db_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            engine = create_engine(f"sqlite:///{path}", future=True)
+            Base.metadata.create_all(engine)
+            self._session_factory: sessionmaker[Session] = sessionmaker(
+                bind=engine, expire_on_commit=False, class_=Session
+            )
+        else:
+            self._session_factory = SessionLocal
 
     def record(
         self,
@@ -78,6 +97,78 @@ class DecisionStore:
                 .limit(limit)
                 .all()
             )
+            for row in rows:
+                session.expunge(row)
+            return rows
+        finally:
+            session.close()
+
+    def count(self) -> int:
+        """
+        Return the total number of decisions recorded.
+
+        Used as a stable, incrementing batch_index for the simulate_decision
+        endpoint so cooldown arithmetic matches the live aggregation loop.
+        """
+        session: Session = self._session_factory()
+        try:
+            return session.query(DecisionRecordORM).count()
+        finally:
+            session.close()
+
+    def count_by_action(self) -> dict[str, int]:
+        """
+        Return cumulative decision counts grouped by action type.
+
+        Uses a single SQL GROUP BY query rather than fetching rows into
+        Python - correct at any scale and safe for use as a Prometheus
+        counter (monotonically increasing, never decreases).
+
+        Returns a dict mapping action string to total count, e.g.::
+
+            {"none": 1200, "retrain": 4, "promote": 2, "rollback": 1}
+        """
+        session: Session = self._session_factory()
+        try:
+            rows = (
+                session.query(
+                    DecisionRecordORM.action,
+                    func.count(DecisionRecordORM.id).label("n"),
+                )
+                .group_by(DecisionRecordORM.action)
+                .all()
+            )
+            return {action: count for action, count in rows}
+        finally:
+            session.close()
+
+    def query_range(
+        self,
+        *,
+        from_ts: float | None = None,
+        to_ts: float | None = None,
+    ) -> list[DecisionRecordORM]:
+        """Return all decisions within an optional time range, oldest first.
+
+        Both bounds are inclusive.  Passing neither returns all records.
+        Used by the ``model-monitor export`` CLI to write the full audit log.
+
+        Args:
+            from_ts: Start Unix timestamp (inclusive).  ``None`` = no lower bound.
+            to_ts:   End Unix timestamp (inclusive).  ``None`` = no upper bound.
+
+        Returns:
+            List of ORM rows expunged from the session, ordered ascending by
+            timestamp so exported files are chronological without extra sorting.
+        """
+        session: Session = self._session_factory()
+        try:
+            q = session.query(DecisionRecordORM)
+            if from_ts is not None:
+                q = q.filter(DecisionRecordORM.timestamp >= from_ts)
+            if to_ts is not None:
+                q = q.filter(DecisionRecordORM.timestamp <= to_ts)
+            rows = q.order_by(DecisionRecordORM.timestamp.asc()).all()
             for row in rows:
                 session.expunge(row)
             return rows

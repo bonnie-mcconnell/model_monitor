@@ -1,4 +1,5 @@
 """ORM model for the operational decision audit log."""
+
 from __future__ import annotations
 
 from sqlalchemy import Float, Index, Integer, String, Text

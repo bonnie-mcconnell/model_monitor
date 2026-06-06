@@ -1,4 +1,5 @@
 """Append-only history of aggregated metric summaries for trend analysis."""
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -18,7 +19,9 @@ class MetricsSummaryHistoryStore:
     """
 
     def __init__(self) -> None:
-        self._session_factory = SessionLocal
+        from collections.abc import Callable
+
+        self._session_factory: Callable[[], Session] = SessionLocal
 
     def write(
         self,
@@ -64,8 +67,7 @@ class MetricsSummaryHistoryStore:
         window: str,
         limit: int = 100,
     ) -> list[MetricsSummaryHistoryORM]:
-        """
-        Return up to ``limit`` history rows for a given aggregation window,
+        """Return up to ``limit`` history rows for a given aggregation window,
         ordered oldest-first so callers receive a ready-to-plot time series.
 
         Rows are expunged from the session before return so callers can access
@@ -80,9 +82,48 @@ class MetricsSummaryHistoryStore:
                 .limit(limit)
                 .all()
             )
-            # Expunge so column values remain accessible after session.close().
             for row in rows:
                 session.expunge(row)
             return list(reversed(rows))
+        finally:
+            session.close()
+
+    def query_range(
+        self,
+        *,
+        window: str,
+        from_ts: float,
+        to_ts: float,
+    ) -> list[MetricsSummaryHistoryORM]:
+        """Return history rows for a given window within a Unix-timestamp range.
+
+        Results are ordered oldest-first so they can be replayed chronologically
+        by ``cli/replay.py`` without additional sorting.  Both bounds are
+        inclusive.
+
+        Args:
+            window:  Aggregation window label (``"5m"``, ``"1h"``, ``"24h"``).
+            from_ts: Start of the range (Unix timestamp, inclusive).
+            to_ts:   End of the range (Unix timestamp, inclusive).
+
+        Returns:
+            List of ORM rows expunged from the session.  Empty when no records
+            fall within the requested range.
+        """
+        session: Session = self._session_factory()
+        try:
+            rows = (
+                session.query(MetricsSummaryHistoryORM)
+                .filter(
+                    MetricsSummaryHistoryORM.window == window,
+                    MetricsSummaryHistoryORM.timestamp >= from_ts,
+                    MetricsSummaryHistoryORM.timestamp <= to_ts,
+                )
+                .order_by(MetricsSummaryHistoryORM.timestamp.asc())
+                .all()
+            )
+            for row in rows:
+                session.expunge(row)
+            return rows
         finally:
             session.close()

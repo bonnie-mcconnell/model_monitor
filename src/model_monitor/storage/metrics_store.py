@@ -1,7 +1,9 @@
 """SQLite-backed persistence for batch-level metric records with cursor pagination."""
+
 from __future__ import annotations
 
 import builtins
+import json
 from pathlib import Path
 from typing import cast
 
@@ -10,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from model_monitor.monitoring.types import DecisionType, MetricRecord
 from model_monitor.storage.db import Base
+from model_monitor.storage.migrations import run_migrations
 from model_monitor.storage.models.metrics_models import MetricsRecordORM
 
 Cursor = tuple[float, int]  # (timestamp, row id)
@@ -35,9 +38,11 @@ class MetricsStore:
             future=True,
         )
 
-        # NOTE: schema creation is intentionally here for now.
-        # This will move to startup / migrations later.
+        # Ensure all tables exist, then apply any pending schema migrations.
+        # Migrations are additive ALTER TABLE statements; run_migrations() is
+        # idempotent and safe to call on every startup.
         Base.metadata.create_all(self.engine)
+        run_migrations(self.engine)
 
         self.Session = sessionmaker(
             bind=self.engine,
@@ -64,6 +69,38 @@ class MetricsStore:
                         avg_confidence=record["avg_confidence"],
                         drift_score=record["drift_score"],
                         decision_latency_ms=record["decision_latency_ms"],
+                        calibration_error=record.get("calibration_error"),
+                        feature_drift_scores=(
+                            json.dumps(record["feature_drift_scores"])
+                            if record.get("feature_drift_scores") is not None
+                            else None
+                        ),
+                        behavioral_violation_rate=record.get(
+                            "behavioral_violation_rate"
+                        ),
+                        shap_attribution=(
+                            json.dumps(record["shap_attribution"])
+                            if record.get("shap_attribution") is not None
+                            else None
+                        ),
+                        causal_drift_report=(
+                            json.dumps(record["causal_drift_report"])
+                            if record.get("causal_drift_report") is not None
+                            else None
+                        ),
+                        mmd_p_value=record.get("mmd_p_value"),
+                        mmd_is_drift=record.get("mmd_is_drift"),
+                        p95_latency_ms=record.get("p95_latency_ms"),
+                        p99_latency_ms=record.get("p99_latency_ms"),
+                        output_drift_score=record.get("output_drift_score"),
+                        output_drift_class_scores=(
+                            json.dumps(record["output_drift_class_scores"])
+                            if record.get("output_drift_class_scores") is not None
+                            else None
+                        ),
+                        data_quality_score=record.get("data_quality_score"),
+                        conformal_coverage=record.get("conformal_coverage"),
+                        conformal_set_size=record.get("conformal_set_size"),
                         action=cast(DecisionType, record["action"]),
                         reason=record["reason"],
                         previous_model=record["previous_model"],
@@ -188,6 +225,27 @@ class MetricsStore:
     # --------------------------------------------------
     @staticmethod
     def _to_record(r: MetricsRecordORM) -> MetricRecord:
+        feature_scores: list[float] | None = None
+        if r.feature_drift_scores is not None:
+            try:
+                feature_scores = json.loads(r.feature_drift_scores)
+            except (ValueError, TypeError):
+                feature_scores = None
+
+        shap_attr: dict[str, float] | None = None
+        if r.shap_attribution is not None:
+            try:
+                shap_attr = json.loads(r.shap_attribution)
+            except (ValueError, TypeError):
+                shap_attr = None
+
+        output_class_scores: list[float] | None = None
+        if r.output_drift_class_scores is not None:
+            try:
+                output_class_scores = json.loads(r.output_drift_class_scores)
+            except (ValueError, TypeError):
+                output_class_scores = None
+
         return {
             "timestamp": r.timestamp,
             "batch_id": r.batch_id,
@@ -197,8 +255,51 @@ class MetricsStore:
             "avg_confidence": r.avg_confidence,
             "drift_score": r.drift_score,
             "decision_latency_ms": r.decision_latency_ms,
+            "p95_latency_ms": r.p95_latency_ms,
+            "p99_latency_ms": r.p99_latency_ms,
+            "calibration_error": r.calibration_error,
+            "feature_drift_scores": feature_scores,
+            "output_drift_score": r.output_drift_score,
+            "output_drift_class_scores": output_class_scores,
+            "data_quality_score": r.data_quality_score,
+            "conformal_coverage": r.conformal_coverage,
+            "conformal_set_size": r.conformal_set_size,
+            "behavioral_violation_rate": r.behavioral_violation_rate,
+            "causal_drift_report": (
+                json.loads(r.causal_drift_report)
+                if r.causal_drift_report is not None
+                else None
+            ),
+            "mmd_p_value": r.mmd_p_value,
+            "mmd_is_drift": r.mmd_is_drift,
+            "shap_attribution": shap_attr,
             "action": cast(DecisionType, r.action),
             "reason": r.reason,
             "previous_model": r.previous_model,
             "new_model": r.new_model,
         }
+
+    def prune_before(self, cutoff_ts: float) -> int:
+        """
+        Delete metric records with timestamp older than ``cutoff_ts``.
+
+        Returns the number of rows deleted.  Safe to call from a background
+        task - does not affect reads or ongoing writes because SQLite
+        serialises writes.
+
+        Args:
+            cutoff_ts: Unix timestamp.  Records older than this are removed.
+                       Typical use: ``time.time() - 30 * 86400`` (30-day TTL).
+        """
+        with self.Session() as session:
+            try:
+                n = (
+                    session.query(MetricsRecordORM)
+                    .filter(MetricsRecordORM.timestamp < cutoff_ts)
+                    .delete(synchronize_session=False)
+                )
+                session.commit()
+                return int(n)
+            except Exception:
+                session.rollback()
+                raise

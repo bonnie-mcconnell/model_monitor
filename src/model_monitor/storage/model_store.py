@@ -1,4 +1,5 @@
 """File-based model store with atomic promotion, rollback, and archiving."""
+
 from __future__ import annotations
 
 import json
@@ -142,6 +143,10 @@ class ModelStore:
             return {}
         data = json.loads(self._active_file.read_text())
         return dict(data) if isinstance(data, dict) else {}
+
+    def has_candidate(self) -> bool:
+        """Return True when a candidate model file is staged for promotion."""
+        return self._candidate_model.exists()
 
     def list_versions(self) -> list[dict[str, str]]:
         """

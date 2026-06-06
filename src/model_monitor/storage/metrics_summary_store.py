@@ -1,4 +1,5 @@
 """Current-state store for rolling aggregated metric summaries."""
+
 from __future__ import annotations
 
 import time
@@ -35,6 +36,11 @@ class MetricsSummaryStore:
         avg_drift_score: float,
         avg_latency_ms: float,
         trust_score: float,
+        avg_calibration_error: float | None = None,
+        avg_output_drift_score: float | None = None,
+        avg_data_quality_score: float | None = None,
+        avg_conformal_coverage: float | None = None,
+        avg_conformal_set_size: float | None = None,
     ) -> None:
         session: Session = self._session_factory()
         now = time.time()
@@ -62,6 +68,11 @@ class MetricsSummaryStore:
             row.avg_latency_ms = avg_latency_ms
             row.updated_ts = now
             row.trust_score = trust_score
+            row.avg_calibration_error = avg_calibration_error
+            row.avg_output_drift_score = avg_output_drift_score
+            row.avg_data_quality_score = avg_data_quality_score
+            row.avg_conformal_coverage = avg_conformal_coverage
+            row.avg_conformal_set_size = avg_conformal_set_size
 
             session.commit()
         except Exception:
