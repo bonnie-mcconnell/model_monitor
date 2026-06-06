@@ -1,4 +1,5 @@
 """UI boundary adapter: construct and format Decision objects for display."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -49,17 +50,13 @@ def format_decision_explanation(decision: Decision) -> dict[str, str]:
         bullets.append(f"F1 drop: {md['f1_drop']:.3f}")
 
     if "baseline_f1" in md and "current_f1" in md:
-        bullets.append(
-            f"F1: {md['current_f1']:.3f} → {md['baseline_f1']:.3f}"
-        )
+        bullets.append(f"F1: {md['current_f1']:.3f} → {md['baseline_f1']:.3f}")
 
     if "drift_score" in md:
         bullets.append(f"Drift score: {md['drift_score']:.3f}")
 
     if "cooldown_batches" in md:
-        bullets.append(
-            f"Cooldown remaining: {md['cooldown_batches']} batches"
-        )
+        bullets.append(f"Cooldown remaining: {md['cooldown_batches']} batches")
 
     if not bullets:
         bullets.append("No diagnostic metadata")
@@ -69,4 +66,3 @@ def format_decision_explanation(decision: Decision) -> dict[str, str]:
         "reason": reason,
         "details": " • ".join(bullets),
     }
-

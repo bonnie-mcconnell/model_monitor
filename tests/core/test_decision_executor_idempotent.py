@@ -2,21 +2,23 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Mapping
+from typing import Any
 
 import pytest
 
 from model_monitor.core.decision_executor import DecisionExecutor
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decisions import Decision
+from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
 
 class RecordingActionExecutor:
-    def __init__(self):
-        self.calls = []
+    def __init__(self) -> None:
+        self.calls: list[tuple[ModelAction, Mapping[str, Any]]] = []
 
-    def execute(self, *, action: ModelAction, context):
+    def execute(self, *, action: ModelAction, context: Mapping[str, Any]) -> None:
         self.calls.append((action, context))
 
 
@@ -46,7 +48,7 @@ async def test_decision_executor_is_idempotent() -> None:
     )
 
     decision = Decision(
-        action="retrain",
+        action=DecisionType.RETRAIN,
         reason="trust degraded",
     )
 

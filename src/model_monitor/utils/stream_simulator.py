@@ -1,12 +1,20 @@
-"""
-Offline batch stream simulator for experimentation and integration testing.
+"""Offline batch stream simulator for experimentation and integration testing.
 
 ``StreamSimulator`` iterates a DataFrame as a sequence of fixed-size batches,
-optionally applying synthetic feature drift and releasing labels with a
-configurable delay. It is the data source used by the simulation loop
-(``scripts/simulation_loop.py``) and can be used directly in integration tests
-to drive the inference pipeline without a live data feed.
+optionally applying synthetic feature drift at a configurable batch index.  It
+is intentionally in ``src/`` (not ``tests/``) because it is used in three
+separate contexts:
+
+  1. ``scripts/simulation_loop.py`` - the ``make sim`` demo pipeline
+  2. The test suite (``tests/test_stream_simulator.py``)
+  3. Notebooks - anyone running ``notebooks/drift_simulation.ipynb`` or the
+     UCI adult drift notebook imports it to drive the monitoring stack on
+     real or semi-synthetic data
+
+Keeping it in ``src/`` makes it importable after ``pip install -e .`` without
+path manipulation, which is the right behaviour for shared utility code.
 """
+
 from __future__ import annotations
 
 from collections import deque
@@ -89,9 +97,7 @@ class StreamSimulator:
         if self._cursor >= len(self._df):
             raise StopIteration
 
-        batch = self._df.iloc[
-            self._cursor : self._cursor + self._batch_size
-        ].copy()
+        batch = self._df.iloc[self._cursor : self._cursor + self._batch_size].copy()
         self._cursor += self._batch_size
 
         y = batch.pop("label").to_numpy()
@@ -119,5 +125,7 @@ class StreamSimulator:
         distribution enough to trigger PSI-based drift detection.
         """
         if step > self._drift_at_step:
-            return X * self._drift_scale
+            # pandas-stubs types DataFrame.__mul__ as returning Any when the
+            # operand is a float scalar; cast to satisfy mypy.
+            return pd.DataFrame(X * self._drift_scale, columns=X.columns, index=X.index)
         return X
