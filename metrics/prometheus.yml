@@ -1,0 +1,26 @@
+# Prometheus configuration for model-monitor.
+#
+# Scrapes the FastAPI /metrics endpoint every 15 seconds.
+# The app service is reachable at http://app:8000 within the Docker network.
+#
+# To reload config without restarting:
+#   curl -X POST http://localhost:9090/-/reload
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  scrape_timeout:      10s
+
+  external_labels:
+    monitor: model-monitor
+    environment: local
+
+scrape_configs:
+  - job_name: model_monitor
+    static_configs:
+      - targets: [app:8000]
+    metrics_path: /metrics
+    # Retry on connection refused - allows Prometheus to start before the
+    # app is fully initialised (the app healthcheck handles readiness but
+    # Prometheus scrapes independently of Docker healthcheck state).
+    honor_timestamps: true
