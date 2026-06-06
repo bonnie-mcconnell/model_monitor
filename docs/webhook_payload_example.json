@@ -1,0 +1,9 @@
+{
+  "_comment": "model-monitor WebhookAlerter payload schema",
+  "_docs": "https://github.com/bonnie-mcconnell/model_monitor#alerting",
+
+  "window": "5m",
+  "trust_score": 0.52,
+  "severity": "critical",
+  "ts": 1713967200.0
+}
