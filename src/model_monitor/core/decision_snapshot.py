@@ -1,4 +1,5 @@
 """Mutable execution-state snapshot for a single decision lifecycle."""
+
 # src/model_monitor/core/decision_snapshot.py
 from __future__ import annotations
 
@@ -22,7 +23,7 @@ class DecisionSnapshot(BaseModel):
     """
 
     model_config = ConfigDict(
-        frozen=False,          # <-- REQUIRED (executor mutates state)
+        frozen=False,  # <-- REQUIRED (executor mutates state)
         validate_assignment=True,
         extra="forbid",
     )

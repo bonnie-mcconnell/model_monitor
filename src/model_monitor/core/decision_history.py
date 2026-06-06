@@ -1,4 +1,5 @@
 """In-memory rolling decision buffer for hysteresis and analytics."""
+
 from __future__ import annotations
 
 from collections import deque
@@ -61,9 +62,7 @@ class DecisionHistory:
         Return recent decision actions (most recent last).
         """
         decisions = (
-            list(self._decisions)
-            if limit is None
-            else list(self._decisions)[-limit:]
+            list(self._decisions) if limit is None else list(self._decisions)[-limit:]
         )
         return [d.action for d in decisions]
 

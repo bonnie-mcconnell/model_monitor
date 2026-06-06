@@ -1,4 +1,5 @@
 """Protocol defining the interface for model action executors."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -20,5 +21,4 @@ class ModelActionExecutorProtocol(Protocol):
         *,
         action: ModelAction,
         context: Mapping[str, Any],
-    ) -> str | None:
-        ...
+    ) -> str | None: ...

@@ -1,4 +1,5 @@
 """Human-readable explanation layer for decisions."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -6,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decisions import Decision
+from model_monitor.core.decisions import Decision, DecisionType
 
 
 @dataclass(frozen=True)
@@ -33,11 +34,12 @@ class DecisionExplainer:
     ) -> ExplainedDecision:
         action = decision.action
 
-        rule_map = {
-            "reject": "severe_drift",
-            "rollback": "catastrophic_regression",
-            "retrain": "sustained_degradation",
-            "promote": "stability_promotion",
+        rule_map: dict[DecisionType, str] = {
+            DecisionType.REJECT: "severe_drift",
+            DecisionType.ROLLBACK: "catastrophic_regression",
+            DecisionType.RETRAIN: "sustained_degradation",
+            DecisionType.PROMOTE: "stability_promotion",
+            DecisionType.SYSTEM_ERROR: "circuit_breaker_open",
         }
 
         rule = rule_map.get(action, "within_thresholds")

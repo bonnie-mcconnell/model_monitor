@@ -1,4 +1,5 @@
 """Read-only analytics over decision history for dashboards and APIs."""
+
 from __future__ import annotations
 
 from collections import Counter
