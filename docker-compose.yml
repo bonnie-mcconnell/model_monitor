@@ -1,17 +1,25 @@
-# Model Monitor - main branch
+# model-monitor docker-compose
 #
-# Runs the FastAPI monitoring server in a container with persistent
-# storage for metrics, decisions, and model artifacts.
+# Default profile: FastAPI server only.
+# Monitoring profile: server + Prometheus + Grafana.
 #
-# Usage:
-#   docker compose up --build          # start the server
-#   docker compose run app make train  # train initial model (required once)
-#   docker compose run app make sim    # run drift simulation
+# Quick start (server only):
+#   docker compose up --build
 #
-# The server is available at http://localhost:8000 after startup.
-# The ingest API (POST /metrics/ingest) is available on the behavior-monitoring branch.
+# Full observability stack:
+#   docker compose --profile monitoring up --build
+#
+# First-time setup (train model before starting server):
+#   docker compose run --rm app python -m model_monitor.training.train
+#
+# Environment variables (create a .env file or pass with -e):
+#   MONITOR_API_KEY      - required to POST to /metrics/ingest
+#   MONITOR_DASHBOARD_KEY - optional; when set, gates /dashboard/* routes
+#   GF_ADMIN_PASSWORD    - Grafana admin password (default: admin)
 
 services:
+
+  # ── FastAPI server ────────────────────────────────────────────────────────
   app:
     build:
       context: .
@@ -19,9 +27,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Persist the SQLite database and trained models across container restarts.
-      - ./data/metrics:/app/data/metrics
+      # Persist the SQLite database, trained models, and reference stats
+      # across container restarts without baking them into the image.
+      - ./data:/app/data
       - ./models:/app/models
+    environment:
+      - MONITOR_API_KEY=${MONITOR_API_KEY:-}
+      - MONITOR_DASHBOARD_KEY=${MONITOR_DASHBOARD_KEY:-}
+      - PYTHONUNBUFFERED=1
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c",
@@ -29,4 +42,48 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+
+  # ── Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    profiles: [monitoring]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./metrics/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    profiles: [monitoring]
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./metrics/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/grafana.json
+      # Disable telemetry - this is a local portfolio/dev deployment.
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:

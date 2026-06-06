@@ -1,0 +1,49 @@
+# Pre-commit hooks for model-monitor.
+#
+# Install:   pip install pre-commit && pre-commit install
+# Run once:  pre-commit run --all-files
+#
+# Hooks run on every `git commit`. CI runs the same checks independently
+# so a missed local hook never reaches the remote branch clean.
+#
+# Pinned to specific revs so the hook environment is reproducible across
+# machines without a lockfile. Update with: pre-commit autoupdate
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      # Lint: catches unused imports, undefined names, style violations.
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+
+      # Format: enforces consistent style (replaces black for this project).
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        args: [--config-file=pyproject.toml]
+        # Pass src so mypy resolves the package correctly from the hook env.
+        pass_filenames: false
+        additional_dependencies:
+          - "pydantic>=2.0"
+          - "sqlalchemy>=2.0"
+          - "types-PyYAML>=6.0"
+          - "types-requests>=2.31"
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Structural checks that catch common mistakes before linting.
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: debug-statements   # catches accidental `breakpoint()` / `pdb`
+      - id: check-added-large-files
+        args: [--maxkb=500]    # model .pkl files belong in models/, not git

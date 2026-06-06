@@ -1,4 +1,18 @@
-# Runtime and dev dependencies are declared in pyproject.toml.
-# Install with:
-#   pip install -e .          # runtime only
-#   pip install -e ".[dev]"   # + test/lint tools
+# Runtime dependencies - pinned ranges match pyproject.toml [project.dependencies].
+# Generate a fully-locked file for reproducible CI:
+#   pip install pip-tools && pip-compile pyproject.toml -o requirements.lock
+#
+# This file pins lower bounds only so that `pip install -r requirements.txt`
+# always resolves to a compatible, tested set without forcing an exact version
+# that may conflict with other tooling in the same environment.
+
+numpy>=1.24,<3
+pandas>=2.0,<4
+scikit-learn>=1.3,<2
+joblib>=1.3,<2
+fastapi>=0.100,<1
+uvicorn>=0.23,<1
+sqlalchemy>=2.0,<3
+pyyaml>=6.0,<7
+jsonschema>=4.17,<5
+prometheus-client>=0.17,<1
