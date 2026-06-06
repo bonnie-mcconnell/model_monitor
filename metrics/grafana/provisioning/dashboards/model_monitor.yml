@@ -1,0 +1,15 @@
+# Auto-provision the model_monitor dashboard from the dashboards/ directory.
+# Grafana reads this on startup; changes to grafana.json are reflected on
+# the next Grafana restart without any UI interaction.
+apiVersion: 1
+
+providers:
+  - name: model_monitor
+    orgId: 1
+    folder: "model-monitor"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
