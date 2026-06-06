@@ -1,4 +1,5 @@
 """Model evaluation: compute F1 score on a labeled DataFrame."""
+
 from __future__ import annotations
 
 from typing import Any
