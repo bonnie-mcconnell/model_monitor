@@ -1,4 +1,5 @@
 """Evidence buffer: accumulates monitoring signals until ready to retrain."""
+
 from __future__ import annotations
 
 import hashlib
@@ -85,8 +86,8 @@ class RetrainEvidenceBuffer:
         # Sort columns and rows for determinism across different insertion orders
         df_sorted = (
             df.sort_index(axis=1)
-              .sort_values(by=list(df.columns))
-              .reset_index(drop=True)
+            .sort_values(by=list(df.columns))
+            .reset_index(drop=True)
         )
 
         # Hash raw float64 values - stable across pandas versions
