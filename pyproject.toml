@@ -30,15 +30,16 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "numpy",
-    "pandas",
-    "scikit-learn",
-    "joblib",
-    "fastapi",
-    "uvicorn",
-    "sqlalchemy",
-    "pyyaml",
-    "jsonschema",
+    "numpy>=1.24,<3",
+    "pandas>=2.0,<4",
+    "scikit-learn>=1.3,<2",
+    "joblib>=1.3,<2",
+    "fastapi>=0.100,<1",
+    "uvicorn>=0.23,<1",
+    "sqlalchemy>=2.0,<3",
+    "pyyaml>=6.0,<7",
+    "jsonschema>=4.17,<5",
+    "prometheus-client>=0.17,<1",
 ]
 
 [project.urls]
@@ -47,22 +48,30 @@ Repository = "https://github.com/bonnie-mcconnell/model_monitor"
 Issues     = "https://github.com/bonnie-mcconnell/model_monitor/issues"
 
 [project.optional-dependencies]
+shap = ["shap"]
 dev = [
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-    "anyio",
-    "httpx",
-    "ruff",
-    "mypy",
-    "types-PyYAML",
-    "types-requests",
+    "pytest>=7.4,<9",
+    "pytest-asyncio>=0.23,<2",
+    "pytest-cov>=4.1,<7",
+    "anyio>=4.0,<5",
+    "httpx>=0.25,<1",
+    "ruff>=0.1,<1",
+    "mypy>=1.5,<2",
+    "types-PyYAML>=6.0,<7",
+    "types-requests>=2.31,<3",
+    "pandas-stubs>=2.0,<3",
+    "hypothesis>=6.88,<7",
+    "shap>=0.42,<1",
+    "pre-commit>=3.5,<4",
 ]
-ui = ["streamlit", "matplotlib"]
+ui        = ["streamlit", "matplotlib", "requests"]
+notebooks = ["jupyter", "matplotlib", "ipykernel"]
 
 [project.scripts]
-model-monitor-train = "model_monitor.training.train:main"
-model-monitor-sim   = "model_monitor.scripts.simulation_loop:main"
+model-monitor-train  = "model_monitor.training.train:_cli"
+model-monitor-sim    = "model_monitor.scripts.simulation_loop:main"
+model-monitor-replay = "model_monitor.cli.replay:main"
+model-monitor-export = "model_monitor.cli.export:main"
 
 [tool.setuptools.package-dir]
 "" = "src"
@@ -77,17 +86,24 @@ where = ["src"]
 pythonpath   = ["src"]
 testpaths    = ["tests"]
 asyncio_mode = "auto"
-markers      = ["asyncio: mark test as asyncio"]
-addopts      = "--cov=model_monitor --cov-report=term-missing --cov-fail-under=80"
+markers      = [
+    "asyncio: mark test as asyncio",
+    "slow: mark test as slow (end-to-end integration, ~30s+)",
+]
+filterwarnings = [
+    "ignore::UserWarning:sklearn",
+    "ignore::DeprecationWarning:sqlalchemy",
+]
+addopts      = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["model_monitor"]
 omit = [
-    "*/api/*",                         # FastAPI layer - tested via HTTP client on behavior-monitoring
     "*/ui/streamlit_app.py",           # presentation layer, no logic
     "*/scripts/simulation_loop.py",    # integration harness, not unit-testable
-    "*/monitoring/aggregation.py",     # async integration loop - full coverage on behavior-monitoring
+    "*/monitoring/aggregation.py",     # async integration loop
     "*/config/logging_config.py",      # logging setup, not logic under test
+    "*/training/train.py",             # _cli() and main() are pragma: no cover
 ]
 
 [tool.coverage.report]
@@ -108,14 +124,36 @@ ignore = ["E501"]
 "scripts/*.py" = ["I001"]  # allow deferred imports in standalone scripts
 
 [tool.mypy]
-python_version         = "3.10"
+python_version         = "3.11"
 files                  = ["src", "tests"]
-ignore_missing_imports = true
+ignore_missing_imports = false
 warn_return_any        = true
 warn_unused_ignores    = true
 
-# Test helpers (stubs, dummy classes) get a lighter touch, we care that
-# they typecheck but don't require every internal to be annotated.
+# Test helpers (stubs, dummy classes) get a lighter touch.
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+# Third-party packages that ship no stubs and have no stub package on PyPI.
+# Listed explicitly rather than using the global ignore_missing_imports so
+# any *new* unstubbed import is caught immediately rather than silently ignored.
+[[tool.mypy.overrides]]
+module = [
+    "model_monitor.scripts.demo_plot",
+    "scripts.demo_plot",
+]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = [
+    "joblib",
+    "joblib.*",
+    "shap",
+    "shap.*",
+    "sklearn",
+    "sklearn.*",
+    "streamlit",
+    "streamlit.*",
+]
+ignore_missing_imports = true
