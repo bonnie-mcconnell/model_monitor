@@ -1,0 +1,27 @@
+# Trust score component weights.
+#
+# All seven weights must sum to 1.0. The server validates this at startup -
+# misconfigured values fail loudly rather than silently producing wrong scores.
+#
+# Tuning guide:
+#   - Raise drift or f1 to make the monitor more aggressive on performance degradation.
+#   - Raise calibration to penalise poorly calibrated confidence scores harder.
+#   - Raise latency to penalise slow deployments (threshold: p95 > 1500ms → score 0).
+#   - Raise data_quality to surface upstream data pipeline failures earlier.
+#   - behavioral is only active on the behavior-monitoring branch; set to 0 on main
+#     to preserve a 5-component system, or leave at the default.
+#
+# "confidence" was renamed to "calibration" in v5. The old key is no longer valid.
+# Calibration uses Expected Calibration Error (ECE) rather than mean max probability:
+#   ECE = 0.00 → score 1.0   (perfect calibration)
+#   ECE = 0.05 → score 0.5   (Guo et al. 2017 warning threshold)
+#   ECE ≥ 0.10 → score 0.0   (severe miscalibration)
+#
+trust_score:
+  accuracy:     0.23
+  f1:           0.18
+  calibration:  0.14
+  drift:        0.18
+  latency:      0.17
+  data_quality: 0.05
+  behavioral:   0.05

@@ -1,0 +1,7 @@
+rollback:
+  # F1 drop relative to the baseline that triggers an immediate rollback.
+  # A drop of 0.15 means if the model's F1 falls 15 percentage points below
+  # the baseline recorded at promotion time, the previous model is restored.
+  # Tune this threshold based on the cost of a false rollback vs. the cost
+  # of running a degraded model.
+  max_f1_drop: 0.15

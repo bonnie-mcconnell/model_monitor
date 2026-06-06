@@ -1,3 +1,12 @@
 drift:
+  # PSI above this threshold is classified as severe drift → reject action.
+  # Standard industry thresholds: <0.1 no drift, 0.1-0.2 moderate, >0.2 severe.
   psi_threshold: 0.2
+
+  # Rolling window size in *number of inference samples* (not batches).
+  # The DriftMonitor accumulates this many rows before computing PSI against
+  # the reference distribution.  At 500 samples/batch this is 1 batch.
+  # The simulation overrides this to 5 *batches* via sim_drift_window so
+  # drift becomes visible within the 80-batch run - production deployments
+  # should keep window=500 (or tune to their batch size).
   window: 500

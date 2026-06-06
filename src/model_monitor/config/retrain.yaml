@@ -1,5 +1,30 @@
 retrain:
+  # Minimum absolute F1 drop from the baseline that triggers a retrain decision.
+  # Lower this to make the monitor more sensitive to small performance drops.
   min_f1_gain: 0.02
+
+  # Minimum batches between two consecutive retrain attempts (ephemeral cooldown).
+  # Also used as the sustained-rejection window: after cooldown_batches consecutive
+  # REJECT decisions the engine escalates to RETRAIN to escape the deadlock.
   cooldown_batches: 5
+
+  # Minimum raw labeled rows the RawDataBuffer must hold before training starts.
+  # Below this threshold the executor falls back to synthetic training data.
   min_samples: 1000
+
+  # Minimum aggregation-loop summaries before the executor acts on a retrain
+  # decision. Keeps retrain from firing on a single noisy batch.
+  # In the simulation each batch produces one summary, so evidence_window=3
+  # means three consecutive degraded batches are required.
+  evidence_window: 3
+
+  # Consecutive none-action batches required before promote fires.
+  # Prevents promotion on a lucky one-batch improvement.
   min_stable_batches: 5
+
+  # Circuit breaker: maximum total retrain decisions before the engine emits
+  # system_error instead of retrain.  Prevents infinite retrain loops when
+  # every retrained model still drifts (e.g. the upstream data pipeline is
+  # broken).  Call engine.reset_retrain_counter() after diagnosing the root
+  # cause to re-open the breaker.  Set to 0 to disable the circuit breaker.
+  max_retrain_attempts: 10
