@@ -1,4 +1,5 @@
 """Health and readiness endpoints for the FastAPI app."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter
