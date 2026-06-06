@@ -20,9 +20,11 @@ def test_retrain_vs_rollback_boundary() -> None:
     )
     assert decision.action == "retrain"
 
-    # At rollback threshold → rollback
+    # At rollback threshold and past warmup window → rollback
+    # batch_index must be >= min_stable_batches (5) before rollback fires.
+    # This prevents false positives from noisy single-batch F1 at cold start.
     decision = engine.decide(
-        batch_index=2,
+        batch_index=cfg.retrain.min_stable_batches,
         f1=baseline - cfg.rollback.max_f1_drop,
         f1_baseline=baseline,
         drift_score=0.0,

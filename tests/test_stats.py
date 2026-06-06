@@ -5,6 +5,7 @@ cosine_similarity is used by ToneConsistencyEvaluator on every evaluation.
 moving_avg and entropy_from_labels are used in analytics and monitoring.
 All three have edge cases that must be correct.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -19,6 +20,7 @@ from model_monitor.utils.stats import (
 # ---------------------------------------------------------------------------
 # cosine_similarity
 # ---------------------------------------------------------------------------
+
 
 def test_cosine_identical_vectors_returns_one() -> None:
     a = np.array([1.0, 2.0, 3.0])
@@ -40,7 +42,7 @@ def test_cosine_orthogonal_vectors_returns_zero() -> None:
 def test_cosine_scale_invariant() -> None:
     """Multiplying a vector by a scalar must not change cosine similarity."""
     a = np.array([1.0, 2.0, 3.0])
-    b = np.array([2.0, 4.0, 6.0])   # 2 * a
+    b = np.array([2.0, 4.0, 6.0])  # 2 * a
     assert cosine_similarity(a, b) == pytest.approx(1.0)
 
 
@@ -80,6 +82,7 @@ def test_cosine_known_value() -> None:
 # moving_avg
 # ---------------------------------------------------------------------------
 
+
 def test_moving_avg_basic() -> None:
     result = moving_avg(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), window=3)
     expected = np.array([2.0, 3.0, 4.0])
@@ -110,6 +113,7 @@ def test_moving_avg_raises_on_negative_window() -> None:
 # ---------------------------------------------------------------------------
 # entropy_from_labels
 # ---------------------------------------------------------------------------
+
 
 def test_entropy_balanced_binary_is_log2() -> None:
     """50/50 split → maximum entropy for binary = ln(2) ≈ 0.693."""

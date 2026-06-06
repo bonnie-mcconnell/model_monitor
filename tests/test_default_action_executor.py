@@ -14,6 +14,7 @@ Three properties that matter:
 
 These are tested in dry_run=True mode to avoid filesystem side effects.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -22,7 +23,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from model_monitor.core.decisions import Decision
+from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.core.default_model_action_executor import DefaultModelActionExecutor
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.storage.decision_store import DecisionStore
@@ -32,6 +33,7 @@ from model_monitor.training.retrain_pipeline import RetrainPipeline
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def tmp_store(tmp_path: Path) -> ModelStore:
@@ -52,6 +54,7 @@ def executor(tmp_store: ModelStore) -> DefaultModelActionExecutor:
 # None and Reject are no-ops
 # ---------------------------------------------------------------------------
 
+
 def test_none_action_returns_none(executor: DefaultModelActionExecutor) -> None:
     result = executor.execute(action=ModelAction.NONE, context={})
     assert result is None
@@ -65,6 +68,7 @@ def test_reject_action_returns_none(executor: DefaultModelActionExecutor) -> Non
 # ---------------------------------------------------------------------------
 # Rollback requires version in context
 # ---------------------------------------------------------------------------
+
 
 def test_rollback_raises_without_version(executor: DefaultModelActionExecutor) -> None:
     with pytest.raises(ValueError, match="version"):
@@ -85,6 +89,7 @@ def test_rollback_dry_run_returns_none_without_touching_store(
 # Promote - baseline_f1 backfill
 # ---------------------------------------------------------------------------
 
+
 def test_promote_dry_run_returns_none(executor: DefaultModelActionExecutor) -> None:
     result = executor.execute(
         action=ModelAction.PROMOTE,
@@ -96,6 +101,7 @@ def test_promote_dry_run_returns_none(executor: DefaultModelActionExecutor) -> N
 # ---------------------------------------------------------------------------
 # Executor-level idempotency
 # ---------------------------------------------------------------------------
+
 
 def test_executor_skips_repeated_action_on_same_model_version(
     tmp_path: Path,
@@ -118,7 +124,7 @@ def test_executor_skips_repeated_action_on_same_model_version(
 
     # Record that PROMOTE already happened for this model version
     decision_store.record(
-        decision=Decision(action="promote", reason="already done"),
+        decision=Decision(action=DecisionType.PROMOTE, reason="already done"),
         model_version=store.get_active_version(),
     )
 
@@ -133,6 +139,7 @@ def test_executor_skips_repeated_action_on_same_model_version(
 # ---------------------------------------------------------------------------
 # Promote - baseline_f1 backfill
 # ---------------------------------------------------------------------------
+
 
 def test_promote_backfills_baseline_f1_from_f1(tmp_path: Path) -> None:
     """
@@ -176,6 +183,7 @@ def test_promote_backfills_baseline_f1_from_f1(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Retrain path
 # ---------------------------------------------------------------------------
+
 
 def test_retrain_dry_run_returns_none_without_calling_pipeline(
     tmp_path: Path,
@@ -222,7 +230,7 @@ def test_retrain_returns_none_when_candidate_not_promoted(tmp_path: Path) -> Non
 
     mock_pipeline = MagicMock(spec=RetrainPipeline)
     mock_pipeline.run.return_value = RetrainResult(
-        candidate_model=None,   # no model → pipeline signals skip
+        candidate_model=None,  # no model → pipeline signals skip
         promotion=PromotionResult(
             promoted=False,
             reason="empty_retrain_dataset",
@@ -268,6 +276,7 @@ def test_unknown_model_action_raises_value_error(tmp_path: Path) -> None:
 
     # Create a value not handled by any branch
     import enum
+
     FakeAction = enum.Enum("FakeAction", {"UNKNOWN": "unknown"})
 
     with pytest.raises(ValueError, match="Unsupported"):
@@ -275,3 +284,125 @@ def test_unknown_model_action_raises_value_error(tmp_path: Path) -> None:
             action=cast(ModelAction, FakeAction.UNKNOWN),
             context={},
         )
+
+
+# ---------------------------------------------------------------------------
+# ModelCard written at promotion
+# ---------------------------------------------------------------------------
+
+
+class TestModelCardAtPromotion:
+    """_write_model_card is called and writes a valid card after promotion."""
+
+    def test_model_card_written_on_successful_promotion(
+        self, tmp_path: Path
+    ) -> None:
+        """A model card JSON file is created after _write_model_card is called."""
+        import os
+        from unittest.mock import patch
+
+        import pandas as pd
+
+        from model_monitor.core.default_model_action_executor import (
+            DefaultModelActionExecutor,
+        )
+        from model_monitor.storage.decision_store import DecisionStore
+        from model_monitor.storage.model_store import ModelStore
+        from model_monitor.training.model_card import ModelCard
+        from model_monitor.training.promotion import PromotionResult
+        from model_monitor.training.retrain_pipeline import (
+            RetrainPipeline,
+            RetrainResult,
+        )
+
+        store = ModelStore(base_path=tmp_path / "models")
+        cards_dir = tmp_path / "cards"
+        cards_dir.mkdir()
+
+        executor = DefaultModelActionExecutor(
+            model_store=store,
+            retrain_pipeline=MagicMock(spec=RetrainPipeline),
+            decision_store=DecisionStore(),
+            dry_run=False,
+        )
+
+        # Build a minimal retrain dataframe
+        import numpy as np
+
+        rng = np.random.default_rng(0)
+        X = rng.standard_normal((60, 3))
+        y = rng.integers(0, 2, size=60)
+        df = pd.DataFrame(X, columns=["f0", "f1", "f2"])
+        df["target"] = y
+
+        result = RetrainResult(
+            candidate_model=MagicMock(),
+            promotion=PromotionResult(
+                promoted=True,
+                reason="f1_improvement=0.05",
+                current_f1=0.75,
+                candidate_f1=0.80,
+                improvement=0.05,
+            ),
+            n_samples=60,
+        )
+
+        # Override MODEL_STORE_DIR env var so card lands in our tmp dir
+        with patch.dict(os.environ, {"MODEL_STORE_DIR": str(cards_dir)}):
+            executor._write_model_card(version="3", retrain_df=df, result=result)
+
+        card_path = cards_dir / "v3_card.json"
+        assert card_path.exists(), "Model card was not written"
+        card = ModelCard.load(card_path)
+        assert card.model_version == 3
+        assert card.evaluation.f1_improvement == pytest.approx(0.05)
+        assert len(card.feature_schema) == 3
+
+    def test_model_card_write_failure_does_not_raise(
+        self, tmp_path: Path
+    ) -> None:
+        """A card write failure must never propagate and block promotion."""
+        import numpy as np
+        import pandas as pd
+
+        from model_monitor.core.default_model_action_executor import (
+            DefaultModelActionExecutor,
+        )
+        from model_monitor.storage.decision_store import DecisionStore
+        from model_monitor.storage.model_store import ModelStore
+        from model_monitor.training.promotion import PromotionResult
+        from model_monitor.training.retrain_pipeline import (
+            RetrainPipeline,
+            RetrainResult,
+        )
+
+        store = ModelStore(base_path=tmp_path / "models")
+        executor = DefaultModelActionExecutor(
+            model_store=store,
+            retrain_pipeline=MagicMock(spec=RetrainPipeline),
+            decision_store=DecisionStore(),
+        )
+
+        df = pd.DataFrame(
+            np.ones((20, 2)), columns=["f0", "f1"]
+        )
+        df["target"] = 0
+
+        result = RetrainResult(
+            candidate_model=MagicMock(),
+            promotion=PromotionResult(
+                promoted=True,
+                reason="test",
+                current_f1=0.5,
+                candidate_f1=0.6,
+                improvement=0.1,
+            ),
+            n_samples=20,
+        )
+
+        # Pass a non-integer version to trigger the int() conversion path
+        # without actually writing to the filesystem
+        try:
+            executor._write_model_card(version=None, retrain_df=df, result=result)
+        except Exception as exc:  # pragma: no cover
+            pytest.fail(f"_write_model_card must not raise, got: {exc}")

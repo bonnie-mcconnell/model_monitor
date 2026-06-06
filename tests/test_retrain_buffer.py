@@ -9,6 +9,7 @@ The buffer has two load-bearing properties:
 
 Both are tested against exact expected values, not just "it works".
 """
+
 from __future__ import annotations
 
 import time
@@ -32,6 +33,7 @@ def _add_summaries(buf: RetrainEvidenceBuffer, n: int) -> None:
 # ---------------------------------------------------------------------------
 # ready() and size()
 # ---------------------------------------------------------------------------
+
 
 def test_not_ready_before_min_samples() -> None:
     buf = RetrainEvidenceBuffer(min_samples=5)
@@ -62,6 +64,7 @@ def test_size_tracks_additions() -> None:
 # consume()
 # ---------------------------------------------------------------------------
 
+
 def test_consume_returns_all_rows() -> None:
     buf = RetrainEvidenceBuffer(min_samples=3)
     _add_summaries(buf, 3)
@@ -81,7 +84,13 @@ def test_consume_returns_correct_columns() -> None:
     buf = RetrainEvidenceBuffer(min_samples=1)
     _add_summaries(buf, 1)
     df = buf.consume()
-    assert set(df.columns) == {"accuracy", "f1", "drift_score", "trust_score", "timestamp"}
+    assert set(df.columns) == {
+        "accuracy",
+        "f1",
+        "drift_score",
+        "trust_score",
+        "timestamp",
+    }
 
 
 def test_consume_empty_buffer_returns_empty_dataframe() -> None:
@@ -93,6 +102,7 @@ def test_consume_empty_buffer_returns_empty_dataframe() -> None:
 # ---------------------------------------------------------------------------
 # retrain_key() - determinism and idempotency
 # ---------------------------------------------------------------------------
+
 
 def test_retrain_key_is_deterministic() -> None:
     """
@@ -122,16 +132,20 @@ def test_retrain_key_is_deterministic() -> None:
 def test_retrain_key_differs_for_different_data() -> None:
     """Different evidence windows must produce different keys."""
     buf_a = RetrainEvidenceBuffer(min_samples=2)
-    buf_a.add_summary(accuracy=0.80, f1=0.78, drift_score=0.05,
-                      trust_score=0.75, timestamp=1000.0)
-    buf_a.add_summary(accuracy=0.81, f1=0.79, drift_score=0.06,
-                      trust_score=0.76, timestamp=1001.0)
+    buf_a.add_summary(
+        accuracy=0.80, f1=0.78, drift_score=0.05, trust_score=0.75, timestamp=1000.0
+    )
+    buf_a.add_summary(
+        accuracy=0.81, f1=0.79, drift_score=0.06, trust_score=0.76, timestamp=1001.0
+    )
 
     buf_b = RetrainEvidenceBuffer(min_samples=2)
-    buf_b.add_summary(accuracy=0.90, f1=0.88, drift_score=0.02,
-                      trust_score=0.92, timestamp=1000.0)
-    buf_b.add_summary(accuracy=0.91, f1=0.89, drift_score=0.03,
-                      trust_score=0.93, timestamp=1001.0)
+    buf_b.add_summary(
+        accuracy=0.90, f1=0.88, drift_score=0.02, trust_score=0.92, timestamp=1000.0
+    )
+    buf_b.add_summary(
+        accuracy=0.91, f1=0.89, drift_score=0.03, trust_score=0.93, timestamp=1001.0
+    )
 
     df_a = buf_a.consume()
     df_b = buf_b.consume()
@@ -152,5 +166,6 @@ def test_retrain_key_is_64_char_hex() -> None:
 def test_retrain_key_raises_on_empty_dataframe() -> None:
     buf = RetrainEvidenceBuffer(min_samples=1)
     import pandas as pd
+
     with pytest.raises(ValueError, match="empty"):
         buf.retrain_key(pd.DataFrame())

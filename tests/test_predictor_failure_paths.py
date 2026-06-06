@@ -87,7 +87,6 @@ def test_predictor_raises_on_non_dataframe_input() -> None:
 
     with pytest.raises(TypeError, match="DataFrame"):
         predictor.predict_batch(
-            np.random.rand(10, 3),  # noqa: PD901 - intentionally wrong type to test TypeError
+            np.random.rand(10, 3),  # type: ignore[arg-type]  # intentionally wrong - tests the guard
             batch_id="bad_input",
         )
-

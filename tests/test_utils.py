@@ -4,6 +4,7 @@ Tests for utils/io.py and utils/time.py.
 utils/io.load_yaml is the single YAML loading function used across the project.
 utils/time provides UTC timestamp helpers.
 """
+
 from __future__ import annotations
 
 import textwrap
@@ -19,6 +20,7 @@ from model_monitor.utils.time import utc_iso, utc_now
 # ---------------------------------------------------------------------------
 # load_yaml
 # ---------------------------------------------------------------------------
+
 
 def test_load_yaml_returns_dict_for_mapping(tmp_path: Path) -> None:
     f = tmp_path / "config.yaml"
@@ -48,11 +50,13 @@ def test_load_yaml_returns_none_for_empty_file(tmp_path: Path) -> None:
 
 def test_load_yaml_nested_structure(tmp_path: Path) -> None:
     f = tmp_path / "nested.yaml"
-    f.write_text(textwrap.dedent("""
+    f.write_text(
+        textwrap.dedent("""
         drift:
           psi_threshold: 0.2
           window: 500
-    """))
+    """)
+    )
     result = load_yaml(f)
     assert result["drift"]["psi_threshold"] == 0.2
 
@@ -60,6 +64,7 @@ def test_load_yaml_nested_structure(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # ensure_dir
 # ---------------------------------------------------------------------------
+
 
 def test_ensure_dir_creates_directory(tmp_path: Path) -> None:
     target = tmp_path / "a" / "b" / "c"
@@ -84,6 +89,7 @@ def test_ensure_dir_returns_path(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # utc_now / utc_iso
 # ---------------------------------------------------------------------------
+
 
 def test_utc_now_is_timezone_aware() -> None:
     dt = utc_now()

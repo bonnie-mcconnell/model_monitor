@@ -7,6 +7,7 @@ so its correctness properties matter: identical distributions produce near-
 zero PSI, severe drift produces high PSI, and reference bin edges are always
 derived from the expected distribution - never recomputed from actual data.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -18,6 +19,7 @@ from model_monitor.monitoring.drift import DriftMonitor, compute_psi
 # ---------------------------------------------------------------------------
 # compute_psi - unit tests
 # ---------------------------------------------------------------------------
+
 
 def test_identical_distributions_have_near_zero_psi() -> None:
     """
@@ -31,7 +33,9 @@ def test_identical_distributions_have_near_zero_psi() -> None:
 
     psi = compute_psi(reference, actual)
 
-    assert psi < 0.05, f"Expected near-zero PSI for identical distributions, got {psi:.4f}"
+    assert psi < 0.05, (
+        f"Expected near-zero PSI for identical distributions, got {psi:.4f}"
+    )
 
 
 def test_severe_drift_produces_high_psi() -> None:
@@ -45,7 +49,9 @@ def test_severe_drift_produces_high_psi() -> None:
 
     psi = compute_psi(reference, actual)
 
-    assert psi > 0.2, f"Expected high PSI for severely shifted distribution, got {psi:.4f}"
+    assert psi > 0.2, (
+        f"Expected high PSI for severely shifted distribution, got {psi:.4f}"
+    )
 
 
 def test_moderate_drift_produces_moderate_psi() -> None:
@@ -64,9 +70,7 @@ def test_moderate_drift_produces_moderate_psi() -> None:
 
     psi = compute_psi(reference, actual)
 
-    assert 0.05 < psi < 0.2, (
-        f"Expected moderate PSI for 0.3-sigma shift, got {psi:.4f}"
-    )
+    assert 0.05 < psi < 0.2, f"Expected moderate PSI for 0.3-sigma shift, got {psi:.4f}"
 
 
 def test_psi_is_nonnegative() -> None:
@@ -144,6 +148,7 @@ def test_psi_handles_constant_reference_distribution() -> None:
 # ---------------------------------------------------------------------------
 # DriftMonitor - integration tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def drift_config() -> DriftConfig:
@@ -256,3 +261,136 @@ def test_drift_monitor_window_is_rolling(
     assert result < drift_config.psi_threshold, (
         f"Expected low PSI after window filled with clean data, got {result:.4f}"
     )
+
+
+# ---------------------------------------------------------------------------
+# compute_psi with pre-computed bin_edges parameter
+# ---------------------------------------------------------------------------
+
+
+def test_psi_with_stored_bin_edges_matches_computed() -> None:
+    """
+    When bin_edges are pre-computed from the reference distribution and
+    passed explicitly, the result must be identical to computing them
+    internally from the same reference array.
+
+    This is the regression test for the architecture invariant: PSI with
+    stored bin edges and PSI with on-the-fly edges are equivalent when
+    the edges originate from the same reference distribution.
+    """
+    rng = np.random.default_rng(7)
+    reference = rng.normal(0, 1, 2000)
+    actual = rng.normal(1.5, 1, 2000)
+
+    # Compute edges the same way compute_psi does internally
+    percentiles = np.linspace(0, 100, 11)
+    edges = np.unique(np.percentile(reference, percentiles))
+
+    psi_stored = compute_psi(reference, actual, bin_edges=edges)
+    psi_computed = compute_psi(reference, actual)
+
+    assert abs(psi_stored - psi_computed) < 1e-12, (
+        f"PSI with stored edges ({psi_stored:.6f}) must equal "
+        f"PSI with computed edges ({psi_computed:.6f})"
+    )
+
+
+def test_psi_stored_bin_edges_pins_measurement_to_reference_space() -> None:
+    """
+    The whole point of storing bin edges is that production PSI is always
+    measured in the *reference* feature space, even if production data has
+    a wildly different distribution.
+
+    Verify: using edges from reference_A to measure drift from reference_A
+    gives a different result than using edges from reference_B, even when
+    measuring the same actual array.  This asymmetry is what makes PSI a
+    valid drift signal rather than a symmetric distance.
+    """
+    rng = np.random.default_rng(99)
+    reference_A = rng.normal(0, 1, 1000)
+    reference_B = rng.normal(5, 1, 1000)
+    actual = rng.normal(2.5, 1, 1000)
+
+    edges_A = np.unique(np.percentile(reference_A, np.linspace(0, 100, 11)))
+    edges_B = np.unique(np.percentile(reference_B, np.linspace(0, 100, 11)))
+
+    psi_from_A = compute_psi(reference_A, actual, bin_edges=edges_A)
+    psi_from_B = compute_psi(reference_B, actual, bin_edges=edges_B)
+
+    assert abs(psi_from_A - psi_from_B) > 0.05, (
+        "PSI measured in different reference spaces should differ "
+        f"(from_A={psi_from_A:.4f}, from_B={psi_from_B:.4f})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# DriftMonitor with stored_bin_edges
+# ---------------------------------------------------------------------------
+
+
+def test_drift_monitor_with_stored_bin_edges_consistent(
+    drift_config: DriftConfig,
+) -> None:
+    """
+    DriftMonitor with stored_bin_edges must produce the same drift score
+    as without them when the edges come from the reference distribution.
+
+    This is the end-to-end version of the compute_psi stored-edges test:
+    it verifies the edges flow correctly through DriftMonitor.update().
+    """
+    rng = np.random.default_rng(11)
+    n_features = 4
+    reference = rng.normal(0, 1, (500, n_features))
+
+    # Build stored bin edges from reference columns
+    stored: dict[int, np.ndarray] = {}
+    for i in range(n_features):
+        edges = np.unique(np.percentile(reference[:, i], np.linspace(0, 100, 11)))
+        stored[i] = edges
+
+    monitor_stored = DriftMonitor(
+        reference_features=reference,
+        config=drift_config,
+        stored_bin_edges=stored,
+    )
+    monitor_computed = DriftMonitor(
+        reference_features=reference,
+        config=drift_config,
+    )
+
+    # Feed both monitors the same batches
+    for seed in range(drift_config.window):
+        batch = rng.normal(1.5, 1, (50, n_features))
+        score_stored = monitor_stored.update(batch)
+        score_computed = monitor_computed.update(batch)
+
+    # After the window fills, scores should be identical
+    assert abs(score_stored - score_computed) < 1e-12, (
+        f"DriftMonitor stored ({score_stored:.6f}) vs computed "
+        f"({score_computed:.6f}) edges should agree"
+    )
+
+
+def test_drift_monitor_without_stored_edges_falls_back_gracefully(
+    drift_config: DriftConfig,
+) -> None:
+    """
+    DriftMonitor must work correctly when stored_bin_edges is None or
+    missing keys.  This is the backward-compatibility path for deployments
+    that have a reference_stats.json without psi_bin_edges (produced by
+    an older train.py).
+    """
+    rng = np.random.default_rng(55)
+    reference = rng.normal(0, 1, (300, 3))
+
+    monitor = DriftMonitor(
+        reference_features=reference,
+        config=drift_config,
+        stored_bin_edges=None,
+    )
+
+    for _ in range(drift_config.window):
+        monitor.update(rng.normal(0, 1, (50, 3)))
+
+    score = monitor.update(rng.normal(3.0, 1, (50, 3)))
+    assert score > 0.0

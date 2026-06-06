@@ -8,6 +8,7 @@ The critical property: it must be append-only. Multiple writes for the
 same window must each produce a new row, not overwrite the previous one.
 That is what makes it a history, not a current-state store.
 """
+
 from __future__ import annotations
 
 import time
@@ -127,6 +128,7 @@ def test_write_stores_correct_values() -> None:
 # list_history - the public read path
 # ---------------------------------------------------------------------------
 
+
 def test_list_history_returns_oldest_first() -> None:
     """
     list_history must return rows in ascending timestamp order so callers
@@ -152,8 +154,7 @@ def test_list_history_returns_oldest_first() -> None:
     assert len(rows) == 3
     timestamps = [r.timestamp for r in rows]
     assert timestamps == sorted(timestamps), (
-        "list_history must return rows oldest-first; "
-        f"got timestamps {timestamps}"
+        f"list_history must return rows oldest-first; got timestamps {timestamps}"
     )
 
 
@@ -183,9 +184,7 @@ def test_list_history_limit_is_respected() -> None:
 
     rows = store.list_history(window="test_limit", limit=2)
 
-    assert len(rows) == 2, (
-        f"limit=2 must cap results at 2 rows; got {len(rows)}"
-    )
+    assert len(rows) == 2, f"limit=2 must cap results at 2 rows; got {len(rows)}"
 
 
 def test_list_history_rows_accessible_after_return() -> None:

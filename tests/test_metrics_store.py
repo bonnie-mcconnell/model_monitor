@@ -6,17 +6,22 @@ logic here: it uses a (timestamp, id) tuple to page through results
 consistently under concurrent writes. This is non-trivial enough that
 the test suite must cover it.
 """
+
 from __future__ import annotations
 
 import time
 import uuid
+from pathlib import Path
+from typing import cast
 
+from model_monitor.core.decisions import DecisionType
 from model_monitor.monitoring.types import MetricRecord
 from model_monitor.storage.metrics_store import MetricsStore
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_record(**overrides: object) -> MetricRecord:
     base: MetricRecord = {
@@ -28,18 +33,34 @@ def _make_record(**overrides: object) -> MetricRecord:
         "avg_confidence": 0.85,
         "drift_score": 0.03,
         "decision_latency_ms": 120.0,
-        "action": "none",
+        "calibration_error": None,
+        "feature_drift_scores": None,
+        "behavioral_violation_rate": None,
+        "shap_attribution": None,
+        "action": DecisionType.NONE,
         "reason": "within thresholds",
         "previous_model": None,
         "new_model": None,
+        # Fields added in later migrations - always supply them so the TypedDict
+        # is fully satisfied even when running against the base schema.
+        "p95_latency_ms": None,
+        "p99_latency_ms": None,
+        "output_drift_score": None,
+        "output_drift_class_scores": None,
+        "data_quality_score": None,
+        "conformal_coverage": None,
+        "conformal_set_size": None,
+        "causal_drift_report": None,
+        "mmd_p_value": None,
+        "mmd_is_drift": None,
     }
-    from typing import cast
     return cast(MetricRecord, {**base, **overrides})
 
 
 # ---------------------------------------------------------------------------
 # write / tail / latest
 # ---------------------------------------------------------------------------
+
 
 def test_write_and_tail_returns_record() -> None:
     store = MetricsStore()
@@ -76,6 +97,7 @@ def test_tail_empty_store_returns_empty_list() -> None:
 # ---------------------------------------------------------------------------
 # list - cursor pagination
 # ---------------------------------------------------------------------------
+
 
 def test_list_without_cursor_returns_records() -> None:
     store = MetricsStore()
@@ -130,11 +152,11 @@ def test_list_filter_by_action() -> None:
     store = MetricsStore()
     ts = time.time() + 20000
     retrain_id = str(uuid.uuid4())
-    store.write(_make_record(timestamp=ts, action="retrain", batch_id=retrain_id))
-    store.write(_make_record(timestamp=ts + 1, action="none"))
+    store.write(_make_record(timestamp=ts, action=DecisionType.RETRAIN, batch_id=retrain_id))
+    store.write(_make_record(timestamp=ts + 1, action=DecisionType.NONE))
 
-    records, _ = store.list(limit=100, start_ts=ts - 1, action="retrain")
-    assert all(r["action"] == "retrain" for r in records)
+    records, _ = store.list(limit=100, start_ts=ts - 1, action=DecisionType.RETRAIN)
+    assert all(r["action"] == DecisionType.RETRAIN for r in records)
     assert any(r["batch_id"] == retrain_id for r in records)
 
 
@@ -146,3 +168,55 @@ def test_list_returns_none_cursor_when_no_more_results() -> None:
     records, cursor = store.list(limit=100, start_ts=ts - 1)
     # Only one record in this window - must have no next page
     assert cursor is None
+
+
+# ---------------------------------------------------------------------------
+# behavioral_violation_rate round-trip
+# ---------------------------------------------------------------------------
+
+
+def test_behavioral_violation_rate_persists_and_roundtrips(tmp_path: Path) -> None:
+    """
+    behavioral_violation_rate written by MetricsStore.write() must be
+    recovered unchanged by MetricsStore.tail().
+
+    This is the persistence guarantee that allows the value to be surfaced
+    in dashboards and Prometheus without re-running contract evaluations.
+    """
+    store = MetricsStore(db_path=tmp_path / "metrics.db")
+    rate = 0.42
+    store.write(_make_record(behavioral_violation_rate=rate))
+
+    rows = store.tail(limit=1)
+    assert len(rows) == 1
+    assert rows[0]["behavioral_violation_rate"] == rate
+
+
+def test_behavioral_violation_rate_none_when_not_configured(tmp_path: Path) -> None:
+    """
+    When no BehavioralContractRunner is configured, behavioral_violation_rate
+    must be None in both the written and retrieved record.
+
+    None is the correct sentinel for 'behavioral monitoring not active' -
+    it is distinct from 0.0 ('active and no violations').
+    """
+    store = MetricsStore(db_path=tmp_path / "metrics.db")
+    store.write(_make_record(behavioral_violation_rate=None))
+
+    rows = store.tail(limit=1)
+    assert len(rows) == 1
+    assert rows[0]["behavioral_violation_rate"] is None
+
+
+def test_behavioral_violation_rate_zero_distinct_from_none(tmp_path: Path) -> None:
+    """
+    0.0 (active monitoring, no violations) must roundtrip as 0.0, not None.
+    The store must not collapse 0.0 to NULL.
+    """
+    store = MetricsStore(db_path=tmp_path / "metrics.db")
+    store.write(_make_record(behavioral_violation_rate=0.0))
+
+    rows = store.tail(limit=1)
+    assert len(rows) == 1
+    assert rows[0]["behavioral_violation_rate"] == 0.0
+    assert rows[0]["behavioral_violation_rate"] is not None

@@ -9,7 +9,7 @@ import pytest
 
 from model_monitor.core.decision_executor import DecisionExecutor
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decisions import Decision
+from model_monitor.core.decisions import Decision, DecisionType
 from model_monitor.core.model_actions import ModelAction
 from model_monitor.monitoring.retrain_buffer import RetrainEvidenceBuffer
 
@@ -38,7 +38,7 @@ async def test_noop_decision_executes_without_side_effects() -> None:
         min_f1_improvement=0.05,
     )
 
-    decision = Decision(action="none", reason="no-op")
+    decision = Decision(action=DecisionType.NONE, reason="no-op")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -63,7 +63,7 @@ async def test_retrain_skipped_when_buffer_not_ready() -> None:
         min_f1_improvement=0.05,
     )
 
-    decision = Decision(action="retrain", reason="low trust")
+    decision = Decision(action=DecisionType.RETRAIN, reason="low trust")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -96,7 +96,7 @@ async def test_retrain_executes_when_buffer_ready() -> None:
         dry_run=True,
     )
 
-    decision = Decision(action="retrain", reason="degradation")
+    decision = Decision(action=DecisionType.RETRAIN, reason="degradation")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -125,7 +125,7 @@ async def test_promote_decision_executes_in_dry_run() -> None:
         dry_run=True,
     )
 
-    decision = Decision(action="promote", reason="stability conditions satisfied")
+    decision = Decision(action=DecisionType.PROMOTE, reason="stability conditions satisfied")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,
@@ -154,7 +154,7 @@ async def test_rollback_decision_executes_in_dry_run() -> None:
         dry_run=True,
     )
 
-    decision = Decision(action="rollback", reason="catastrophic regression")
+    decision = Decision(action=DecisionType.ROLLBACK, reason="catastrophic regression")
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,

@@ -5,6 +5,7 @@ decision_from_api is a boundary adapter used by the Streamlit dashboard.
 format_decision_explanation builds human-readable strings shown to engineers
 during incident triage. Both have real branching logic and must be correct.
 """
+
 from __future__ import annotations
 
 import typing
@@ -18,6 +19,7 @@ from model_monitor.ui.decision_explanation import (
 # ---------------------------------------------------------------------------
 # decision_from_api
 # ---------------------------------------------------------------------------
+
 
 def test_decision_from_api_constructs_correctly() -> None:
     payload = {
@@ -44,12 +46,17 @@ def test_decision_from_api_accepts_non_string_keys() -> None:
 def test_decision_from_api_missing_metadata_defaults_to_empty() -> None:
     payload = {"action": "none", "reason": "ok"}
     decision = decision_from_api(payload)
-    assert decision.metadata == {} or decision.metadata is None or isinstance(decision.metadata, dict)
+    assert (
+        decision.metadata == {}
+        or decision.metadata is None
+        or isinstance(decision.metadata, dict)
+    )
 
 
 # ---------------------------------------------------------------------------
 # format_decision_explanation - output structure
 # ---------------------------------------------------------------------------
+
 
 def _make_decision(action: str, reason: str, **meta) -> Decision:
     return Decision(
@@ -113,7 +120,8 @@ def test_format_no_metadata_produces_fallback_message() -> None:
 def test_format_f1_transition_shown_when_both_present() -> None:
     """baseline_f1 and current_f1 together produce a transition string."""
     decision = _make_decision(
-        "retrain", "degraded",
+        "retrain",
+        "degraded",
         baseline_f1=0.85,
         current_f1=0.77,
     )

@@ -9,10 +9,12 @@ cooldown ensures each alert fires at most once per 5 minutes.
 We test this by inspecting what gets logged, which requires capturing
 log output - the correct approach for testing log-only functions.
 """
+
 from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from unittest.mock import patch
 
 import pytest
 
@@ -124,3 +126,43 @@ def test_tracker_reset_clears_all_slots() -> None:
     assert tracker.can_emit("1h:warning") is True
 
 
+def test_mmd_drift_alert_fires_when_mmd_is_drift() -> None:
+    """MMD joint-drift alert logs a warning when mmd_is_drift=True."""
+    tracker = AlertCooldownTracker()
+    with patch.object(
+        logging.getLogger("model_monitor.alerts"), "warning"
+    ) as mock_log:
+        check_alerts(
+            "5m",
+            {
+                "trust_score": 0.85,
+                "avg_drift_score": 0.03,
+                "mmd_is_drift": True,
+                "mmd_p_value": 0.02,
+            },
+            tracker=tracker,
+        )
+    calls = [str(c) for c in mock_log.call_args_list]
+    assert any("joint" in c.lower() or "mmd" in c.lower() for c in calls), (
+        f"Expected MMD alert log, got: {calls}"
+    )
+
+
+def test_mmd_drift_alert_does_not_fire_when_no_drift() -> None:
+    """No MMD alert when mmd_is_drift is False."""
+    tracker = AlertCooldownTracker()
+    with patch.object(
+        logging.getLogger("model_monitor.alerts"), "warning"
+    ) as mock_log:
+        check_alerts(
+            "5m",
+            {
+                "trust_score": 0.85,
+                "avg_drift_score": 0.03,
+                "mmd_is_drift": False,
+                "mmd_p_value": 0.30,
+            },
+            tracker=tracker,
+        )
+    calls = [str(c) for c in mock_log.call_args_list]
+    assert not any("joint distribution" in c.lower() for c in calls)

@@ -6,6 +6,7 @@ loop. The properties that matter: it correctly iterates batches, releases
 labels with the configured delay, applies drift after the configured step,
 and raises on invalid construction arguments.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -17,16 +18,19 @@ from model_monitor.utils.stream_simulator import StreamSimulator
 
 def _make_df(n: int = 100) -> pd.DataFrame:
     rng = np.random.default_rng(seed=0)
-    return pd.DataFrame({
-        "f0": rng.standard_normal(n),
-        "f1": rng.standard_normal(n),
-        "label": rng.integers(0, 2, n),
-    })
+    return pd.DataFrame(
+        {
+            "f0": rng.standard_normal(n),
+            "f1": rng.standard_normal(n),
+            "label": rng.integers(0, 2, n),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
 # Construction
 # ---------------------------------------------------------------------------
+
 
 def test_raises_without_label_column() -> None:
     df = pd.DataFrame({"f0": [1.0, 2.0]})
@@ -47,6 +51,7 @@ def test_raises_on_negative_label_delay() -> None:
 # ---------------------------------------------------------------------------
 # Iteration properties
 # ---------------------------------------------------------------------------
+
 
 def test_each_batch_has_correct_shape() -> None:
     """Every batch must have exactly batch_size rows (or fewer on the last)."""
@@ -91,6 +96,7 @@ def test_n_batches_matches_iteration_count() -> None:
 # Drift injection
 # ---------------------------------------------------------------------------
 
+
 def test_features_are_scaled_after_drift_step() -> None:
     """
     After drift_at_step, feature values must be scaled by drift_scale.
@@ -105,7 +111,7 @@ def test_features_are_scaled_after_drift_step() -> None:
         _make_df(n=n), batch_size=50, drift_at_step=0, drift_scale=2.0, seed=0
     )
 
-    _, _, _ = next(iter(sim_no_drift))   # step 0, pre-drift
+    _, _, _ = next(iter(sim_no_drift))  # step 0, pre-drift
     X_no_drift, _, _ = next(iter(sim_no_drift))
 
     _, _, _ = next(iter(sim_with_drift))  # step 0, drift starts at 0

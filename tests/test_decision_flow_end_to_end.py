@@ -14,7 +14,7 @@ from model_monitor.core.decision_engine import DecisionEngine
 from model_monitor.core.decision_executor import DecisionExecutor
 from model_monitor.core.decision_runner import DecisionRunner
 from model_monitor.core.decision_snapshot import DecisionSnapshot
-from model_monitor.core.decisions import Decision, DecisionMetadata
+from model_monitor.core.decisions import Decision, DecisionMetadata, DecisionType
 from model_monitor.core.model_action_executor_protocol import (
     ModelActionExecutorProtocol,
 )
@@ -103,6 +103,7 @@ async def test_decision_flow_end_to_end() -> None:
 # metadata_json persistence
 # ---------------------------------------------------------------------------
 
+
 def test_decision_store_persists_metadata_as_json() -> None:
     """
     Decision.metadata must survive a round-trip through DecisionStore.
@@ -122,7 +123,7 @@ def test_decision_store_persists_metadata_as_json() -> None:
         "drift_score": 0.04,
     }
     decision = Decision(
-        action="retrain",
+        action=DecisionType.RETRAIN,
         reason="Sustained performance degradation detected",
         metadata=metadata,
     )
@@ -157,7 +158,7 @@ def test_decision_store_handles_empty_metadata_gracefully() -> None:
     """
     store = DecisionStore()
 
-    decision = Decision(action="none", reason="System operating within thresholds")
+    decision = Decision(action=DecisionType.NONE, reason="System operating within thresholds")
     store.record(decision=decision)
 
     rows = store.tail(limit=1)

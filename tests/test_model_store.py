@@ -12,6 +12,7 @@ Specific properties tested:
 - get_active_metadata returns full metric content, not just version
 - atomic write: no partial files left after save_candidate
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,6 +26,7 @@ from model_monitor.storage.model_store import ModelStore
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _promote(store: ModelStore, f1: float = 0.85) -> str:
     """Save a minimal serialisable object as candidate and promote it."""
     store.save_candidate({"weights": [1.0, 2.0]})
@@ -34,6 +36,7 @@ def _promote(store: ModelStore, f1: float = 0.85) -> str:
 # ---------------------------------------------------------------------------
 # Promotion and active.json
 # ---------------------------------------------------------------------------
+
 
 def test_promote_writes_version_to_active_json(tmp_path: Path) -> None:
     store = ModelStore(base_path=tmp_path)
@@ -83,6 +86,7 @@ def test_get_active_version_returns_none_before_first_promotion(
 # list_versions
 # ---------------------------------------------------------------------------
 
+
 def test_list_versions_returns_empty_before_any_promotion(tmp_path: Path) -> None:
     store = ModelStore(base_path=tmp_path)
     assert store.list_versions() == []
@@ -118,6 +122,7 @@ def test_list_versions_each_entry_has_required_fields(tmp_path: Path) -> None:
 # Atomic write
 # ---------------------------------------------------------------------------
 
+
 def test_save_candidate_leaves_no_tmp_file(tmp_path: Path) -> None:
     """
     The atomic rename pattern must not leave .tmp files behind.
@@ -143,6 +148,7 @@ def test_save_candidate_file_is_loadable(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Rollback
 # ---------------------------------------------------------------------------
+
 
 def test_rollback_to_nonexistent_version_raises(tmp_path: Path) -> None:
     """
@@ -187,6 +193,7 @@ def test_rollback_loads_correct_model(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # load_current error path
 # ---------------------------------------------------------------------------
+
 
 def test_load_current_raises_when_no_model_exists(tmp_path: Path) -> None:
     store = ModelStore(base_path=tmp_path)

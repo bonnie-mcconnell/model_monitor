@@ -86,6 +86,7 @@ def test_reject_on_severe_drift(config: AppConfig) -> None:
 # Input validation
 # ---------------------------------------------------------------------------
 
+
 def test_invalid_trust_score_raises_value_error(config: AppConfig) -> None:
     """
     trust_score outside [0, 1] is a caller bug, not a monitoring signal.

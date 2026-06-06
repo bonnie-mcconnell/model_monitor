@@ -10,7 +10,7 @@ from model_monitor.storage.model_store import ModelStore
 
 
 class DummyModel:
-    def __init__(self, value: int):
+    def __init__(self, value: int) -> None:
         self.value = value
 
     def predict_proba(self, X):

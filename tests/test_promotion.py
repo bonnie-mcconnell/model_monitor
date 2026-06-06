@@ -7,6 +7,7 @@ is an >= comparison. Getting this boundary wrong means candidates that
 just barely qualify get rejected, or candidates that don't qualify get
 promoted. Either failure is silent - no crash, just the wrong decision.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -80,8 +81,6 @@ def test_candidate_not_promoted_when_worse_than_current() -> None:
 
 def test_result_is_frozen_dataclass() -> None:
     """PromotionResult must be immutable - it is a value object."""
-    result = compare_models(
-        current_f1=0.80, candidate_f1=0.85, min_improvement=0.02
-    )
+    result = compare_models(current_f1=0.80, candidate_f1=0.85, min_improvement=0.02)
     with pytest.raises((AttributeError, TypeError)):
         result.promoted = False  # type: ignore[misc]
