@@ -31,11 +31,12 @@ make train           # train initial model (required once)
 make test            # 806 tests, ~120 seconds
 make sim             # live drift simulation
 make lint            # ruff check src/ tests/
+make fmt             # ruff format src/ tests/ (auto-fix style)
 make typecheck       # mypy src/model_monitor/ tests/
 make coverage        # pytest + coverage report
 make run             # FastAPI server at localhost:8000
 make dashboard       # Streamlit UI (requires make run)
-make notebook        # open uci_adult_drift_demo.ipynb
+make notebook        # open uci_adult_drift_demo.ipynb (run make train first)
 ```
 
 ### Full observability stack (Prometheus + Grafana)
@@ -364,7 +365,7 @@ concurrent writes.
 
 ---
 
-## The test suite found 37 production bugs
+## The test suite found 18 production bugs
 
 Including: IEEE 754 float comparison in promotion (0.82−0.80 = 0.0199… ≠ 0.02),
 entropy non-negativity with EPS smoothing, ORM `__dict__` leaking
@@ -413,9 +414,10 @@ coarse monitoring). See `MonitorConfig.mmd_every` and `mmd_permutations`.
 ### `predict_one()` - streaming / per-request inference
 
 `predict_one()` returns the model's raw output in < 1 ms (the model call
-dominates). Monitoring runs asynchronously when the buffer reaches
-`flush_every` rows (default 64). At 64-row flush intervals on a 500-row
-stream the total overhead is identical to a single `predict(batch_size=64)`.
+dominates). Monitoring runs on the next `flush()` call - either when the
+buffer reaches `flush_every` rows or when you call `flush()` explicitly.
+At 64-row flush intervals on a 500-row stream the total overhead is identical
+to a single `predict(batch_size=64)`.
 
 ---
 

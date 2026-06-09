@@ -158,7 +158,7 @@ The executor resolves training data in priority order:
 
 ### TrustScoreConfig
 
-`config/settings.py`. Five component weights loaded from `config/trust_score.yaml`.
+`config/settings.py`. Seven component weights loaded from `config/trust_score.yaml`.
 
 A `@model_validator` enforces that weights sum to 1.0 ± 1e-6 at construction
 time. Misconfigured deployments fail at startup with an explicit error that
@@ -166,8 +166,9 @@ shows the individual weight values and their total - not silently producing
 trust scores that sum to more or less than 1.0.
 
 `compute_trust_score()` accepts `config: TrustScoreConfig | None`. When `None`,
-it uses the package defaults (0.30/0.25/0.15/0.20/0.10), preserving backward
-compatibility with code that constructs the function call directly.
+it uses the package defaults (0.23/0.18/0.14/0.18/0.17/0.05/0.05 for
+accuracy/F1/calibration/drift/latency/data\_quality/behavioral), preserving
+backward compatibility with code that constructs the function call directly.
 
 ### ShapDriftAttributor
 

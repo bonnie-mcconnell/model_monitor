@@ -61,9 +61,19 @@
   specific engineering tradeoffs on SQLite, threshold calibration, behavioral
   contract streaming limitations, MAB promotion, online MMD, and coverage
   strategy.
-
-
-### Fixed
+- **ARCHITECTURE.md `TrustScoreConfig` section** corrected: said "Five component
+  weights" (there are seven) and cited stale defaults of 0.30/0.25/0.15/0.20/0.10;
+  corrected to the actual code defaults 0.23/0.18/0.14/0.18/0.17/0.05/0.05.
+- **CONTRIBUTING.md** "five weights" corrected to "seven weights".
+- **README.md** bug count corrected from 37 to 18; "monitoring runs asynchronously"
+  corrected to accurate description of deferred-flush semantics.
+- **`anthropic` mypy override** moved from inline `# type: ignore` in
+  `llm_judge.py` to `[[tool.mypy.overrides]]` in `pyproject.toml` (BM branch),
+  consistent with how all other optional deps are handled.
+- **`tmp_path` fixture annotation** in `test_predict_one.py` corrected from
+  `pytest.TempPathFactory` to `pathlib.Path`.
+- **Six `__init__.py` files** that contained only `from __future__ import
+  annotations` now have proper module docstrings.
 
 **`ThresholdAdvisor` fed drifted batches (critical).** The comment in
 `predict.py` read *"Only records when no drift/reject/retrain"* but no guard

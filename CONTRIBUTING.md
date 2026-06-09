@@ -70,7 +70,7 @@ dashboards, alerting) depend on it staying bounded to [0, 1] and on the
 weights summing to 1.0. Before changing weights or adding components:
 
 - Change `config/trust_score.yaml` - never the source code directly
-- Verify the five weights still sum to 1.0 (the Pydantic validator will
+- Verify the seven weights still sum to 1.0 (the Pydantic validator will
   catch this at startup if they don't)
 - Verify that perfect inputs (accuracy=1, f1=1, drift=0, latency=0ms)
   still produce a trust score of 1.0
@@ -110,6 +110,7 @@ single point of truth for the live system's policy parameters.
 Every push and PR runs, on Python 3.10, 3.11, and 3.12:
 
 1. `ruff check src/ tests/` - no unused imports, no inline imports, no dead assignments
+1. `ruff format --check src/ tests/` - consistent style (run `make fmt` to fix)
 2. `mypy src/model_monitor/ tests/` - no type errors in source or tests
 3. `pytest tests/ -v --cov=model_monitor --cov-fail-under=80` - all tests pass
    with at least 80% coverage on the testable source
