@@ -34,6 +34,7 @@ repos:
           - "sqlalchemy>=2.0"
           - "types-PyYAML>=6.0"
           - "types-requests>=2.31"
+          - "pandas-stubs>=2.0"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
