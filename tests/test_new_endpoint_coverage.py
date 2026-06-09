@@ -97,7 +97,9 @@ class TestCausalDriftLatest:
     def test_returns_200_with_empty_store(self, tmp_path: Path) -> None:
         """Returns 200 even when no batches have been recorded."""
         store = MetricsStore(db_path=str(tmp_path / "empty.db"))
-        with patch("model_monitor.api.dashboard._get_metrics_store", return_value=store):
+        with patch(
+            "model_monitor.api.dashboard._get_metrics_store", return_value=store
+        ):
             resp = client.get("/dashboard/causal-drift/latest")
         assert resp.status_code == 200
         payload = resp.json()
@@ -110,7 +112,9 @@ class TestCausalDriftLatest:
         """available=False when the latest record carries no causal_drift_report."""
         store = MetricsStore(db_path=str(tmp_path / "m.db"))
         store.write(_full_record())
-        with patch("model_monitor.api.dashboard._get_metrics_store", return_value=store):
+        with patch(
+            "model_monitor.api.dashboard._get_metrics_store", return_value=store
+        ):
             resp = client.get("/dashboard/causal-drift/latest")
         assert resp.status_code == 200
         assert resp.json()["available"] is False
@@ -132,7 +136,9 @@ class TestCausalDriftLatest:
                 causal_drift_report=json.dumps(causal_payload),
             )
         )
-        with patch("model_monitor.api.dashboard._get_metrics_store", return_value=store):
+        with patch(
+            "model_monitor.api.dashboard._get_metrics_store", return_value=store
+        ):
             resp = client.get("/dashboard/causal-drift/latest")
         assert resp.status_code == 200
         payload = resp.json()

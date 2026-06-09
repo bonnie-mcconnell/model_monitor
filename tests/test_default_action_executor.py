@@ -294,9 +294,7 @@ def test_unknown_model_action_raises_value_error(tmp_path: Path) -> None:
 class TestModelCardAtPromotion:
     """_write_model_card is called and writes a valid card after promotion."""
 
-    def test_model_card_written_on_successful_promotion(
-        self, tmp_path: Path
-    ) -> None:
+    def test_model_card_written_on_successful_promotion(self, tmp_path: Path) -> None:
         """A model card JSON file is created after _write_model_card is called."""
         import os
         from unittest.mock import patch
@@ -358,9 +356,7 @@ class TestModelCardAtPromotion:
         assert card.evaluation.f1_improvement == pytest.approx(0.05)
         assert len(card.feature_schema) == 3
 
-    def test_model_card_write_failure_does_not_raise(
-        self, tmp_path: Path
-    ) -> None:
+    def test_model_card_write_failure_does_not_raise(self, tmp_path: Path) -> None:
         """A card write failure must never propagate and block promotion."""
         import numpy as np
         import pandas as pd
@@ -383,9 +379,7 @@ class TestModelCardAtPromotion:
             decision_store=DecisionStore(),
         )
 
-        df = pd.DataFrame(
-            np.ones((20, 2)), columns=["f0", "f1"]
-        )
+        df = pd.DataFrame(np.ones((20, 2)), columns=["f0", "f1"])
         df["target"] = 0
 
         result = RetrainResult(

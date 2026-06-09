@@ -125,7 +125,9 @@ async def test_promote_decision_executes_in_dry_run() -> None:
         dry_run=True,
     )
 
-    decision = Decision(action=DecisionType.PROMOTE, reason="stability conditions satisfied")
+    decision = Decision(
+        action=DecisionType.PROMOTE, reason="stability conditions satisfied"
+    )
     snapshot = DecisionSnapshot(
         decision_id=str(uuid.uuid4()),
         action=decision.action,

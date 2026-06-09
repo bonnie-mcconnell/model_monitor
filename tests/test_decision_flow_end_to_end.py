@@ -158,7 +158,9 @@ def test_decision_store_handles_empty_metadata_gracefully() -> None:
     """
     store = DecisionStore()
 
-    decision = Decision(action=DecisionType.NONE, reason="System operating within thresholds")
+    decision = Decision(
+        action=DecisionType.NONE, reason="System operating within thresholds"
+    )
     store.record(decision=decision)
 
     rows = store.tail(limit=1)

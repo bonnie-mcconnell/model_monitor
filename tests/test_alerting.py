@@ -129,9 +129,7 @@ def test_tracker_reset_clears_all_slots() -> None:
 def test_mmd_drift_alert_fires_when_mmd_is_drift() -> None:
     """MMD joint-drift alert logs a warning when mmd_is_drift=True."""
     tracker = AlertCooldownTracker()
-    with patch.object(
-        logging.getLogger("model_monitor.alerts"), "warning"
-    ) as mock_log:
+    with patch.object(logging.getLogger("model_monitor.alerts"), "warning") as mock_log:
         check_alerts(
             "5m",
             {
@@ -151,9 +149,7 @@ def test_mmd_drift_alert_fires_when_mmd_is_drift() -> None:
 def test_mmd_drift_alert_does_not_fire_when_no_drift() -> None:
     """No MMD alert when mmd_is_drift is False."""
     tracker = AlertCooldownTracker()
-    with patch.object(
-        logging.getLogger("model_monitor.alerts"), "warning"
-    ) as mock_log:
+    with patch.object(logging.getLogger("model_monitor.alerts"), "warning") as mock_log:
         check_alerts(
             "5m",
             {

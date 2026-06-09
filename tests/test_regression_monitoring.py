@@ -27,9 +27,9 @@ from model_monitor.monitoring.regression import (
 
 
 @pytest.fixture()
-def linear_model_and_data() -> (
-    tuple[object, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-):
+def linear_model_and_data() -> tuple[
+    object, np.ndarray, np.ndarray, np.ndarray, np.ndarray
+]:
     """Simple linear regression fixture: y = 2x + noise."""
     from sklearn.linear_model import LinearRegression
 
@@ -74,7 +74,10 @@ class TestWasserstein1Distance:
 
     def test_non_negative(self) -> None:
         rng = np.random.default_rng(9)
-        assert wasserstein1_distance(rng.standard_normal(200), rng.standard_normal(200)) >= 0.0
+        assert (
+            wasserstein1_distance(rng.standard_normal(200), rng.standard_normal(200))
+            >= 0.0
+        )
 
     def test_raises_on_empty_ref(self) -> None:
         with pytest.raises(ValueError, match="non-empty"):
@@ -249,7 +252,13 @@ class TestComputeRegressionTrustScore:
             coverage_rate=0.0,  # terrible
             data_quality_score=0.0,  # terrible
             mae_baseline=1.0,
-            weights={"mae": 1.0, "rmse": 0.0, "drift": 0.0, "coverage": 0.0, "data_quality": 0.0},
+            weights={
+                "mae": 1.0,
+                "rmse": 0.0,
+                "drift": 0.0,
+                "coverage": 0.0,
+                "data_quality": 0.0,
+            },
         )
         assert score == pytest.approx(1.0)
 
@@ -432,8 +441,14 @@ class TestRegressionMonitor:
         )
         m.predict(X_test[:50], y_true=y_test[:50])
         s = m.summary()
-        for key in ("n_batches", "mean_trust_score", "mean_mae", "mean_rmse",
-                    "mean_wasserstein", "mae_baseline"):
+        for key in (
+            "n_batches",
+            "mean_trust_score",
+            "mean_mae",
+            "mean_rmse",
+            "mean_wasserstein",
+            "mae_baseline",
+        ):
             assert key in s, f"missing key: {key}"
 
     def test_summary_empty_before_predict(

@@ -71,7 +71,13 @@ def test_promote_requires_stable_none_window(decision_engine: DecisionEngine) ->
         f1=0.85,
         f1_baseline=0.85,
         drift_score=0.0,
-        recent_actions=[DecisionType.NONE, DecisionType.NONE, DecisionType.RETRAIN, DecisionType.NONE, DecisionType.NONE],
+        recent_actions=[
+            DecisionType.NONE,
+            DecisionType.NONE,
+            DecisionType.RETRAIN,
+            DecisionType.NONE,
+            DecisionType.NONE,
+        ],
     )
 
     assert decision.action != DecisionType.PROMOTE

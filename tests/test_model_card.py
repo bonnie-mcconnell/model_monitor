@@ -160,7 +160,10 @@ class TestBuildModelCard:
 
     def test_feature_names_set(self, sample_card: ModelCard) -> None:
         assert [f.name for f in sample_card.feature_schema] == [
-            "age", "income", "score", "tenure"
+            "age",
+            "income",
+            "score",
+            "tenure",
         ]
 
     def test_n_training_samples_correct(self, sample_card: ModelCard) -> None:
@@ -238,9 +241,16 @@ class TestModelCardSerialisation:
     def test_summary_dict_keys(self, sample_card: ModelCard) -> None:
         s = sample_card.summary_dict()
         required = {
-            "model_version", "created_at_iso", "training_data_hash",
-            "n_training_samples", "n_features", "feature_names",
-            "accuracy", "f1", "f1_improvement", "promotion_reason",
+            "model_version",
+            "created_at_iso",
+            "training_data_hash",
+            "n_training_samples",
+            "n_features",
+            "feature_names",
+            "accuracy",
+            "f1",
+            "f1_improvement",
+            "promotion_reason",
         }
         assert required <= set(s.keys())
 

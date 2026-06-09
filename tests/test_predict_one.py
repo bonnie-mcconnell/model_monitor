@@ -21,6 +21,8 @@ Tests verify:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from sklearn.datasets import make_classification
@@ -126,7 +128,9 @@ def test_auto_flush_clears_labels_too(
     """Accumulated labels are cleared alongside rows on auto-flush."""
     clf, ref = clf_and_ref
     # Synthetic integer labels
-    X, y = make_classification(n_samples=100, n_features=6, n_informative=4, random_state=42)
+    X, y = make_classification(
+        n_samples=100, n_features=6, n_informative=4, random_state=42
+    )
     m = Monitor(
         RandomForestClassifier(n_estimators=5, random_state=0).fit(X[:60], y[:60]),
         reference_data=X[60:],
@@ -210,7 +214,7 @@ def test_flushed_batch_result_bounds(
 def test_pending_rows_survive_save_load(
     monitor: Monitor,
     clf_and_ref: tuple[RandomForestClassifier, np.ndarray],
-    tmp_path: pytest.TempPathFactory,
+    tmp_path: Path,
 ) -> None:
     """Pending rows are serialised by save() and restored by load()."""
     _, ref = clf_and_ref
@@ -218,7 +222,7 @@ def test_pending_rows_survive_save_load(
     for i in range(n_pending):
         monitor.predict_one(ref[i], flush_every=999)
 
-    save_path = str(tmp_path / "monitor_state.json")  # type: ignore[operator]
+    save_path = str(tmp_path / "monitor_state.json")
     monitor.save(save_path)
 
     restored = Monitor.load(

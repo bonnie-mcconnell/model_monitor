@@ -35,11 +35,18 @@ class TestCUSUMConstruction:
 
     def test_raises_on_negative_warmup(self) -> None:
         with pytest.raises(ValueError, match="warmup_batches"):
-            CUSUMDetector(reference_mean=0.05, delta=0.01, threshold=4.0, warmup_batches=-1)
+            CUSUMDetector(
+                reference_mean=0.05, delta=0.01, threshold=4.0, warmup_batches=-1
+            )
 
     def test_raises_on_invalid_direction(self) -> None:
         with pytest.raises(ValueError, match="direction"):
-            CUSUMDetector(reference_mean=0.05, delta=0.01, threshold=4.0, direction="sideways")  # type: ignore[arg-type]
+            CUSUMDetector(
+                reference_mean=0.05,
+                delta=0.01,
+                threshold=4.0,
+                direction="sideways",  # type: ignore[arg-type]
+            )
 
     def test_initial_state(self) -> None:
         d = CUSUMDetector(reference_mean=0.05, delta=0.01, threshold=4.0)
@@ -169,7 +176,11 @@ class TestDownwardShift:
     def test_direction_up_does_not_fire_on_downward_shift(self) -> None:
         """direction='up' must ignore downward shifts."""
         d = CUSUMDetector(
-            reference_mean=0.9, delta=0.01, threshold=0.5, direction="up", warmup_batches=0
+            reference_mean=0.9,
+            delta=0.01,
+            threshold=0.5,
+            direction="up",
+            warmup_batches=0,
         )
         for _ in range(30):
             result = d.update(0.0)  # large downward shift
@@ -178,7 +189,11 @@ class TestDownwardShift:
     def test_direction_down_does_not_fire_on_upward_shift(self) -> None:
         """direction='down' must ignore upward shifts."""
         d = CUSUMDetector(
-            reference_mean=0.0, delta=0.01, threshold=0.5, direction="down", warmup_batches=0
+            reference_mean=0.0,
+            delta=0.01,
+            threshold=0.5,
+            direction="down",
+            warmup_batches=0,
         )
         for _ in range(30):
             result = d.update(10.0)  # large upward shift
@@ -221,7 +236,9 @@ class TestAutoReset:
         assert second_alarm is not None, "second alarm not fired after reset"
 
     def test_manual_reset_zeroes_cumulative_sums(self) -> None:
-        d = CUSUMDetector(reference_mean=0.0, delta=0.01, threshold=10.0, warmup_batches=0)
+        d = CUSUMDetector(
+            reference_mean=0.0, delta=0.01, threshold=10.0, warmup_batches=0
+        )
         for _ in range(5):
             d.update(1.0)
         assert d.s_pos > 0
@@ -276,13 +293,17 @@ class TestFalseAlarmRate:
 
 class TestResultFields:
     def test_s_pos_non_negative(self) -> None:
-        d = CUSUMDetector(reference_mean=0.5, delta=0.1, threshold=5.0, warmup_batches=0)
+        d = CUSUMDetector(
+            reference_mean=0.5, delta=0.1, threshold=5.0, warmup_batches=0
+        )
         for v in [-10.0, -5.0, 0.0, 0.5, 1.0]:
             result = d.update(v)
             assert result.s_pos >= 0.0
 
     def test_s_neg_non_negative(self) -> None:
-        d = CUSUMDetector(reference_mean=0.5, delta=0.1, threshold=5.0, warmup_batches=0)
+        d = CUSUMDetector(
+            reference_mean=0.5, delta=0.1, threshold=5.0, warmup_batches=0
+        )
         for v in [10.0, 5.0, 0.5, 0.0, -0.5]:
             result = d.update(v)
             assert result.s_neg >= 0.0
@@ -299,7 +320,9 @@ class TestResultFields:
         assert result.statistic == pytest.approx(3.14)
 
     def test_alarm_false_means_no_direction_no_changepoint(self) -> None:
-        d = CUSUMDetector(reference_mean=0.0, delta=0.01, threshold=1000.0, warmup_batches=0)
+        d = CUSUMDetector(
+            reference_mean=0.0, delta=0.01, threshold=1000.0, warmup_batches=0
+        )
         result = d.update(0.001)
         assert not result.alarm
         assert result.alarm_direction is None

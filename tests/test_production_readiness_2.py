@@ -208,7 +208,9 @@ def test_count_by_action_groups_correctly(tmp_path: Path) -> None:
         )
     for _ in range(2):
         store.record(
-            decision=Decision(action=DecisionType.RETRAIN, reason="degraded", metadata={}),
+            decision=Decision(
+                action=DecisionType.RETRAIN, reason="degraded", metadata={}
+            ),
             batch_index=1,
             trust_score=0.7,
             f1=0.75,

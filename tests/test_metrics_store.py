@@ -152,7 +152,9 @@ def test_list_filter_by_action() -> None:
     store = MetricsStore()
     ts = time.time() + 20000
     retrain_id = str(uuid.uuid4())
-    store.write(_make_record(timestamp=ts, action=DecisionType.RETRAIN, batch_id=retrain_id))
+    store.write(
+        _make_record(timestamp=ts, action=DecisionType.RETRAIN, batch_id=retrain_id)
+    )
     store.write(_make_record(timestamp=ts + 1, action=DecisionType.NONE))
 
     records, _ = store.list(limit=100, start_ts=ts - 1, action=DecisionType.RETRAIN)

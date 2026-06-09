@@ -160,14 +160,18 @@ class TestPredict:
     """BatchResult contract and monitoring side-effects."""
 
     def test_returns_batch_result(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         result = monitor.predict(X[:50])
         assert isinstance(result, BatchResult)
 
     def test_predictions_shape_matches_input(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         result = monitor.predict(X[:75])
@@ -175,21 +179,27 @@ class TestPredict:
         assert result.confidences.shape == (75,)
 
     def test_trust_score_in_unit_interval(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         result = monitor.predict(X[:50])
         assert 0.0 <= result.trust_score <= 1.0
 
     def test_drift_score_non_negative(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         result = monitor.predict(X[:50])
         assert result.drift_score >= 0.0
 
     def test_batch_id_auto_generated(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         r1 = monitor.predict(X[:50])
@@ -197,14 +207,18 @@ class TestPredict:
         assert r1.batch_id != r2.batch_id
 
     def test_explicit_batch_id_respected(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         result = monitor.predict(X[:30], batch_id="my_batch_42")
         assert result.batch_id == "my_batch_42"
 
     def test_n_batches_increments(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         for i in range(4):
@@ -212,7 +226,9 @@ class TestPredict:
         assert monitor.n_batches == 4
 
     def test_history_accumulates(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         for _ in range(3):
@@ -220,7 +236,9 @@ class TestPredict:
         assert len(monitor.history) == 3
 
     def test_history_newest_first(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         """history property returns batches newest-first for dashboard display."""
         _, X, _ = clf_and_data
@@ -289,15 +307,15 @@ class TestPredict:
 class TestSummaryAndReport:
     """summary() and report() contract."""
 
-    def test_summary_empty_before_first_predict(
-        self, monitor: Monitor
-    ) -> None:
+    def test_summary_empty_before_first_predict(self, monitor: Monitor) -> None:
         s = monitor.summary()
         assert s.n_batches == 0
         assert s.mean_trust_score is None
 
     def test_summary_contains_required_keys(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         from model_monitor import MonitorSummary
 
@@ -310,7 +328,9 @@ class TestSummaryAndReport:
         assert s.feature_names is not None
 
     def test_summary_n_batches_correct(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         for _ in range(3):
@@ -318,7 +338,9 @@ class TestSummaryAndReport:
         assert monitor.summary().n_batches == 3
 
     def test_report_is_string(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         monitor.predict(X[:50])
@@ -328,7 +350,9 @@ class TestSummaryAndReport:
         assert "no batches" in monitor.report().lower()
 
     def test_report_contains_trust_drift_lines(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         _, X, _ = clf_and_data
         monitor.predict(X[:50])
@@ -346,7 +370,9 @@ class TestThresholdRecommendations:
     """ThresholdAdvisor integration through Monitor."""
 
     def test_none_before_enough_stable_batches(
-        self, monitor: Monitor, clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray]
+        self,
+        monitor: Monitor,
+        clf_and_data: tuple[RandomForestClassifier, np.ndarray, np.ndarray],
     ) -> None:
         """Returns None when advisor has fewer observations than min_batches."""
         _, X, _ = clf_and_data
@@ -510,7 +536,9 @@ class TestBatchResultNewFields:
         m = Monitor(
             clf,
             reference_data=X[:100],
-            config=MonitorConfig(psi_threshold=0.0, drift_window=2, enable_mmd=False, enable_causal=False),
+            config=MonitorConfig(
+                psi_threshold=0.0, drift_window=2, enable_mmd=False, enable_causal=False
+            ),
         )
         for i in range(3):
             result = m.predict(X[100 + i * 30 : 130 + i * 30])
@@ -836,7 +864,9 @@ class TestMonitorSummaryTyped:
         m = Monitor(
             clf,
             reference_data=X[:200],
-            config=MonitorConfig(enable_mmd=True, mmd_permutations=30, enable_causal=False),
+            config=MonitorConfig(
+                enable_mmd=True, mmd_permutations=30, enable_causal=False
+            ),
         )
         for i in range(3):
             m.predict(X[200 + i * 30 : 230 + i * 30])
@@ -902,7 +932,7 @@ class TestCUSUMInMonitor:
             config=MonitorConfig(
                 enable_mmd=False,
                 enable_causal=False,
-                psi_threshold=0.20,   # high PSI threshold - hard to cross
+                psi_threshold=0.20,  # high PSI threshold - hard to cross
                 cusum_delta=0.01,
                 cusum_threshold=0.05,  # low CUSUM threshold - easy to cross
                 cusum_warmup=0,
@@ -912,7 +942,9 @@ class TestCUSUMInMonitor:
         alarms = []
         for i in range(30):
             # OOD batches: large distribution shift
-            X_ood = X[200 + i * 5 : 205 + i * 5] + rng.standard_normal(X[205:210].shape) * 3
+            X_ood = (
+                X[200 + i * 5 : 205 + i * 5] + rng.standard_normal(X[205:210].shape) * 3
+            )
             r = m.predict(X_ood)
             if r.is_cusum_alarm:
                 alarms.append(i)

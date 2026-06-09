@@ -47,7 +47,13 @@ def _history_with(*actions: DecisionType) -> DecisionHistory:
 
 
 def test_analytics_summary_counts_actions() -> None:
-    history = _history_with(DecisionType.NONE, DecisionType.RETRAIN, DecisionType.NONE, DecisionType.PROMOTE, DecisionType.NONE)
+    history = _history_with(
+        DecisionType.NONE,
+        DecisionType.RETRAIN,
+        DecisionType.NONE,
+        DecisionType.PROMOTE,
+        DecisionType.NONE,
+    )
     analytics = DecisionAnalytics(history)
     summary = analytics.decision_summary()
     assert summary[DecisionType.NONE] == 3
@@ -61,7 +67,9 @@ def test_analytics_summary_empty_history_returns_empty_dict() -> None:
 
 
 def test_analytics_tail_returns_last_n() -> None:
-    history = _history_with(DecisionType.NONE, DecisionType.RETRAIN, DecisionType.ROLLBACK)
+    history = _history_with(
+        DecisionType.NONE, DecisionType.RETRAIN, DecisionType.ROLLBACK
+    )
     analytics = DecisionAnalytics(history)
     tail = analytics.decision_tail(limit=2)
     assert len(tail) == 2

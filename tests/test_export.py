@@ -33,7 +33,9 @@ from model_monitor.storage.models.decision_record import DecisionRecordORM
 # ---------------------------------------------------------------------------
 
 
-def _write(store: DecisionStore, ts: float, action: DecisionType = DecisionType.NONE) -> None:
+def _write(
+    store: DecisionStore, ts: float, action: DecisionType = DecisionType.NONE
+) -> None:
     session: _Session = store._session_factory()
     try:
         row = DecisionRecordORM(
