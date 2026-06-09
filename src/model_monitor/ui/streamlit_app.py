@@ -629,6 +629,7 @@ if isinstance(causal, dict) and causal.get("available"):
     _raw_report = causal.get("report")
     if isinstance(_raw_report, str):
         import json as _json
+
         try:
             _causal_report = _json.loads(_raw_report)
         except Exception:
@@ -668,7 +669,8 @@ if _causal_report:
     if isinstance(_feat_results, list) and _feat_results:
         _fdf = pd.DataFrame(_feat_results)
         display_cols = [
-            c for c in ["feature_name", "psi", "drift_class", "is_root_cause"]
+            c
+            for c in ["feature_name", "psi", "drift_class", "is_root_cause"]
             if c in _fdf.columns
         ]
         st.dataframe(_fdf[display_cols], use_container_width=True, hide_index=True)
@@ -680,7 +682,9 @@ if _causal_report:
         batch_id = _causal_report.get("batch_id", "-")
         st.caption(f"Batch: {batch_id}")
 elif isinstance(causal, dict) and not causal.get("available"):
-    st.info("No drift events recorded yet - causal analysis requires at least one drifted batch.")
+    st.info(
+        "No drift events recorded yet - causal analysis requires at least one drifted batch."
+    )
 else:
     st.info("Causal drift endpoint unavailable - is the API running?")
 
@@ -751,18 +755,17 @@ st.caption(
 )
 mmd_data = safe_get(f"{DASHBOARD}/metrics/tail?limit=50")
 if isinstance(mmd_data, list) and mmd_data:
-    _mmd_records = [
-        r for r in mmd_data
-        if r.get("mmd_p_value") is not None
-    ]
+    _mmd_records = [r for r in mmd_data if r.get("mmd_p_value") is not None]
     if _mmd_records:
-
-
-        _mmd_df = pd.DataFrame(_mmd_records)[["batch_id", "mmd_p_value", "mmd_is_drift"]].copy()
-        _mmd_df = _mmd_df.rename(columns={
-            "mmd_p_value": "p-value",
-            "mmd_is_drift": "drift detected",
-        })
+        _mmd_df = pd.DataFrame(_mmd_records)[
+            ["batch_id", "mmd_p_value", "mmd_is_drift"]
+        ].copy()
+        _mmd_df = _mmd_df.rename(
+            columns={
+                "mmd_p_value": "p-value",
+                "mmd_is_drift": "drift detected",
+            }
+        )
         _latest_p = float(_mmd_records[0]["mmd_p_value"])
         _latest_drift = bool(_mmd_records[0].get("mmd_is_drift", False))
         m1, m2 = st.columns(2)
@@ -798,7 +801,9 @@ if isinstance(reg, dict) and reg.get("available"):
     ra, rb, rc = st.columns(3)
     ra.metric(
         "Wasserstein dist.",
-        f"{reg.get('wasserstein', 0):.4f}" if reg.get("wasserstein") is not None else "n/a",
+        f"{reg.get('wasserstein', 0):.4f}"
+        if reg.get("wasserstein") is not None
+        else "n/a",
         help="W₁ distance between reference and current prediction distributions",
     )
     rb.metric(

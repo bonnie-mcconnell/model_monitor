@@ -36,7 +36,7 @@ def _ensure_database_directory(url: str) -> None:
         return
     # sqlite:///relative/path  →  relative/path
     # sqlite:////absolute/path →  /absolute/path
-    db_path_str = url[len("sqlite:///"):]
+    db_path_str = url[len("sqlite:///") :]
     if db_path_str in (":memory:", ""):
         return
     Path(db_path_str).parent.mkdir(parents=True, exist_ok=True)

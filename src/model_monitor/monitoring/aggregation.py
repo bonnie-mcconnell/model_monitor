@@ -400,11 +400,16 @@ def _aggregate_records(
     mmd_pvals: list[float] = [
         float(r["mmd_p_value"])
         for r in records
-        if r.get("mmd_p_value") is not None and isinstance(r["mmd_p_value"], (int, float))
+        if r.get("mmd_p_value") is not None
+        and isinstance(r["mmd_p_value"], (int, float))
     ]
     avg_mmd_p: float | None = (sum(mmd_pvals) / len(mmd_pvals)) if mmd_pvals else None
     any_mmd_drift: bool | None = (
-        any(bool(r.get("mmd_is_drift")) for r in records if r.get("mmd_p_value") is not None)
+        any(
+            bool(r.get("mmd_is_drift"))
+            for r in records
+            if r.get("mmd_p_value") is not None
+        )
         if mmd_pvals
         else None
     )

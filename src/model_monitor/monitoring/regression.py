@@ -305,7 +305,9 @@ def compute_regression_trust_score(
 
     mae_c = _clamp(1.0 - (mae / mae_baseline)) if mae is not None else 1.0
     rmse_c = _clamp(1.0 - (rmse / rmse_baseline)) if rmse is not None else 1.0
-    drift_c = _clamp(1.0 - (wasserstein / w1_threshold)) if wasserstein is not None else 1.0
+    drift_c = (
+        _clamp(1.0 - (wasserstein / w1_threshold)) if wasserstein is not None else 1.0
+    )
     cov_c = coverage_rate if coverage_rate is not None else 1.0
     dq_c = data_quality_score if data_quality_score is not None else 1.0
 
@@ -508,7 +510,9 @@ class RegressionMonitor:
             interval_result = self._conformal.monitor(y_for_conformal, preds)
 
         # ── Trust score ──────────────────────────────────────────────────────
-        cov_rate = interval_result.coverage_rate if interval_result is not None else None
+        cov_rate = (
+            interval_result.coverage_rate if interval_result is not None else None
+        )
         trust, components = compute_regression_trust_score(
             mae=mae,
             rmse=rmse,
@@ -520,15 +524,17 @@ class RegressionMonitor:
             w1_threshold=self.w1_threshold,
         )
 
-        self._history.append({
-            "batch_id": bid,
-            "n_samples": len(preds),
-            "mae": mae,
-            "rmse": rmse,
-            "wasserstein": w1,
-            "trust_score": trust,
-            "coverage_rate": cov_rate,
-        })
+        self._history.append(
+            {
+                "batch_id": bid,
+                "n_samples": len(preds),
+                "mae": mae,
+                "rmse": rmse,
+                "wasserstein": w1,
+                "trust_score": trust,
+                "coverage_rate": cov_rate,
+            }
+        )
 
         return RegressionBatchResult(
             predictions=preds,

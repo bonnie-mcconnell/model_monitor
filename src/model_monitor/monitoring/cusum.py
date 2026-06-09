@@ -173,9 +173,9 @@ class CUSUMDetector:
 
         self._s_pos: float = 0.0
         self._s_neg: float = 0.0
-        self._n: int = 0                  # total batches seen
-        self._n_since_reset: int = 0      # batches since last alarm / reset
-        self._last_reset_at: int = 0      # batch index of last reset
+        self._n: int = 0  # total batches seen
+        self._n_since_reset: int = 0  # batches since last alarm / reset
+        self._last_reset_at: int = 0  # batch index of last reset
 
     # -------------------------------------------------------------------------
     # Public API
@@ -227,12 +227,8 @@ class CUSUMDetector:
         alarm_direction: Literal["up", "down"] | None = None
         change_point: int | None = None
 
-        up_alarm = (
-            self.direction in {"both", "up"} and self._s_pos > self.threshold
-        )
-        down_alarm = (
-            self.direction in {"both", "down"} and self._s_neg > self.threshold
-        )
+        up_alarm = self.direction in {"both", "up"} and self._s_pos > self.threshold
+        down_alarm = self.direction in {"both", "down"} and self._s_neg > self.threshold
 
         if up_alarm or down_alarm:
             alarm = True

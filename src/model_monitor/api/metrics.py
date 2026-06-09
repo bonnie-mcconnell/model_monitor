@@ -327,15 +327,9 @@ def _update_metrics() -> None:
                 _conformal_set_size.labels(window=window).set(
                     summary.avg_conformal_set_size
                 )
-            if (
-                hasattr(summary, "mmd_p_value")
-                and summary.mmd_p_value is not None
-            ):
+            if hasattr(summary, "mmd_p_value") and summary.mmd_p_value is not None:
                 _mmd_p_value.labels(window=window).set(summary.mmd_p_value)
-            if (
-                hasattr(summary, "mmd_is_drift")
-                and summary.mmd_is_drift is not None
-            ):
+            if hasattr(summary, "mmd_is_drift") and summary.mmd_is_drift is not None:
                 _mmd_is_drift.labels(window=window).set(
                     1.0 if summary.mmd_is_drift else 0.0
                 )

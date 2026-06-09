@@ -531,7 +531,9 @@ def simulate_stream(
                         break
             except Exception:
                 pass
-        _causal_json = _causal_record.get("causal_drift_report") if _causal_record else None
+        _causal_json = (
+            _causal_record.get("causal_drift_report") if _causal_record else None
+        )
         if _causal_json:
             import json as _json
 
@@ -547,29 +549,35 @@ def simulate_stream(
                     _report = {}  # unexpected type - skip silently
                 _cause = str(_report.get("dominant_cause", "unknown"))
                 _causal_rec = str(_report.get("recommendation", ""))
-                _colour = _RED if _cause == "pipeline_failure" else (_YELLOW if _cause == "mixed" else _GREEN)
+                _colour = (
+                    _RED
+                    if _cause == "pipeline_failure"
+                    else (_YELLOW if _cause == "mixed" else _GREEN)
+                )
                 print(f"{_BOLD}Causal Drift Attribution{_RESET}")
                 print(f"  Dominant cause: {_colour}{_cause.upper()}{_RESET}")
                 print(f"  Recommendation: {_causal_rec}")
                 _raw_results = _report.get("feature_results")
                 _results: list[dict[str, object]] = (
-                    list(_raw_results)
-                    if isinstance(_raw_results, list)
-                    else []
+                    list(_raw_results) if isinstance(_raw_results, list) else []
                 )
                 if _results:
                     print(f"  {'Feature':<18}  {'PSI':>6}  {'Classification'}")
-                    print(f"  {'─'*18}  {'─'*6}  {'─'*22}")
+                    print(f"  {'─' * 18}  {'─' * 6}  {'─' * 22}")
                     for _fr_d in _results[:8]:  # cap at 8 rows for readability
                         _cls = str(_fr_d.get("drift_class", "stable"))
                         _cls_colour = (
-                            _RED if _cls == "pipeline_suspect"
-                            else (_YELLOW if _cls == "correlated_follower"
-                                  else (_DIM if _cls == "stable" else _GREEN))
+                            _RED
+                            if _cls == "pipeline_suspect"
+                            else (
+                                _YELLOW
+                                if _cls == "correlated_follower"
+                                else (_DIM if _cls == "stable" else _GREEN)
+                            )
                         )
                         _psi_val = _fr_d.get("psi", 0.0)
                         print(
-                            f"  {str(_fr_d.get('feature_name','?')):<18}  "
+                            f"  {str(_fr_d.get('feature_name', '?')):<18}  "
                             f"{float(_psi_val):>6.3f}  "  # type: ignore[arg-type]
                             f"{_cls_colour}{_cls}{_RESET}"
                         )
@@ -594,8 +602,10 @@ def simulate_stream(
             print(f"  Trust score warn threshold: {_ta_rec.trust_warn:.4f}")
             if _ta_rec.feature_names and _ta_rec.psi_warn_per_feature:
                 print(f"  {'Feature':<28}  {'PSI warn':>8}")
-                print(f"  {'─'*28}  {'─'*8}")
-                for _fname, _fthresh in zip(_ta_rec.feature_names, _ta_rec.psi_warn_per_feature):
+                print(f"  {'─' * 28}  {'─' * 8}")
+                for _fname, _fthresh in zip(
+                    _ta_rec.feature_names, _ta_rec.psi_warn_per_feature
+                ):
                     print(f"  {_fname:<28}  {_fthresh:>8.4f}")
             if _ta_rec.notes:
                 print("\n  Notes:")

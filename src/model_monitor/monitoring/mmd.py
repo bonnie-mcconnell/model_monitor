@@ -324,9 +324,7 @@ class MMDDriftDetector:
         """
         prod = np.asarray(production_data, dtype=float)
         if prod.ndim != 2:
-            raise ValueError(
-                f"production_data must be 2D; got shape {prod.shape}"
-            )
+            raise ValueError(f"production_data must be 2D; got shape {prod.shape}")
         if prod.shape[1] != self._ref.shape[1]:
             raise ValueError(
                 f"production_data has {prod.shape[1]} features; "

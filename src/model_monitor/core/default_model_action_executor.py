@@ -255,7 +255,9 @@ class DefaultModelActionExecutor:
                 build_model_card,
             )
 
-            ver_int = int(version) if version is not None and str(version).isdigit() else 0
+            ver_int = (
+                int(version) if version is not None and str(version).isdigit() else 0
+            )
             feature_cols = [c for c in retrain_df.columns if c != "target"]
             X_train = retrain_df[feature_cols]
 

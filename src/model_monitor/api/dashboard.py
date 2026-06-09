@@ -848,7 +848,7 @@ async def get_model_card(version: int) -> dict[str, object]:
         raise HTTPException(
             status_code=404,
             detail=f"No model card found for version {version}. "
-                   f"Cards are written at promotion time from v8 onward.",
+            f"Cards are written at promotion time from v8 onward.",
         )
     try:
         card = ModelCard.load(path)
@@ -898,7 +898,9 @@ async def regression_latest() -> dict[str, object]:
     import model_monitor.api.startup as _startup
 
     pred = getattr(_startup, "_predictor", None)
-    reg_monitor = getattr(pred, "_regression_monitor", None) if pred is not None else None
+    reg_monitor = (
+        getattr(pred, "_regression_monitor", None) if pred is not None else None
+    )
 
     if reg_monitor is None:
         return {"available": False, "reason": "regression_monitor_not_configured"}
@@ -927,7 +929,9 @@ async def regression_summary() -> dict[str, object]:
     import model_monitor.api.startup as _startup
 
     pred = getattr(_startup, "_predictor", None)
-    reg_monitor = getattr(pred, "_regression_monitor", None) if pred is not None else None
+    reg_monitor = (
+        getattr(pred, "_regression_monitor", None) if pred is not None else None
+    )
 
     if reg_monitor is None:
         return {"available": False, "reason": "regression_monitor_not_configured"}
@@ -983,9 +987,7 @@ async def drift_population(
             break
 
     batches = [str(r.get("batch_id", "")) for r in records]
-    psi_by_feature: dict[str, list[float | None]] = {
-        name: [] for name in feature_names
-    }
+    psi_by_feature: dict[str, list[float | None]] = {name: [] for name in feature_names}
 
     for r in records:
         fscores = r.get("feature_drift_scores")

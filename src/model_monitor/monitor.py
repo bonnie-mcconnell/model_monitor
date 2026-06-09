@@ -209,8 +209,8 @@ class MonitorConfig:
     # constructed and updated on every batch's drift_score.
     # Set cusum_delta to half the smallest PSI shift worth detecting.
     # Set cusum_threshold to ~4× the stable-period PSI standard deviation.
-    cusum_delta: float = 0.0         # 0 = disabled
-    cusum_threshold: float = 0.0     # 0 = disabled
+    cusum_delta: float = 0.0  # 0 = disabled
+    cusum_threshold: float = 0.0  # 0 = disabled
     cusum_warmup: int = 5
 
 
@@ -350,7 +350,9 @@ class Monitor:
         # ── Resolve feature names ────────────────────────────────────────────
         if isinstance(reference_data, pd.DataFrame):
             self._feature_names: list[str] = (
-                feature_names if feature_names is not None else list(reference_data.columns)
+                feature_names
+                if feature_names is not None
+                else list(reference_data.columns)
             )
             self._ref_np: np.ndarray = reference_data.values
         else:
@@ -603,7 +605,9 @@ class Monitor:
 
         # ── Data quality ─────────────────────────────────────────────────────
         dq_report = self._data_quality.evaluate(X_df)
-        dq_score: float | None = dq_report.quality_score if dq_report is not None else None
+        dq_score: float | None = (
+            dq_report.quality_score if dq_report is not None else None
+        )
 
         # ── Conformal coverage ───────────────────────────────────────────────
         conformal_cov: float | None = None
@@ -656,7 +660,9 @@ class Monitor:
             if drift_score <= self._cfg.psi_threshold:
                 # Only feed stable-period batches to the advisor.
                 self._advisor.observe(
-                    psi_scores=psi_scores if psi_scores else [0.0] * len(self._feature_names),
+                    psi_scores=psi_scores
+                    if psi_scores
+                    else [0.0] * len(self._feature_names),
                     trust_score=trust_score,
                 )
             advisor_ready = self._advisor.is_ready
@@ -723,7 +729,9 @@ class Monitor:
             "mmd_is_drift": mmd_result.is_drift if mmd_result is not None else None,
             "cusum_alarm": cusum_result.alarm if cusum_result is not None else None,
             "cusum_s_pos": cusum_result.s_pos if cusum_result is not None else None,
-            "cusum_change_point": cusum_result.change_point if cusum_result is not None else None,
+            "cusum_change_point": cusum_result.change_point
+            if cusum_result is not None
+            else None,
         }
         self._history.append(record)
 
@@ -760,9 +768,7 @@ class Monitor:
             try:
                 self._store.write(store_rec)
             except Exception as exc:
-                log.warning(
-                    "MetricsStore.write failed for batch %s: %s", bid, exc
-                )
+                log.warning("MetricsStore.write failed for batch %s: %s", bid, exc)
 
         result = BatchResult(
             predictions=preds,
@@ -801,12 +807,13 @@ class Monitor:
         """Score a single sample and return the model's prediction.
 
         Real-time inference workloads - REST endpoints, streaming pipelines,
-        per-event scoring - produce one row at a time.  Calling :meth:`predict`
-        with a single row works but defers all monitoring (drift, CUSUM, MMD)
-        until enough rows accumulate.  ``predict_one`` makes this explicit:
-        individual rows are accumulated in an internal buffer; when the buffer
-        reaches ``flush_every`` rows the full :meth:`predict` pipeline runs
-        automatically, updating all monitors and firing alarm callbacks.
+        per-event scoring - produce one row at a time.  ``predict_one`` is
+        optimised for this pattern: the model's prediction is returned
+        immediately, and monitoring (drift, CUSUM, MMD) runs once the buffer
+        reaches ``flush_every`` rows rather than on every individual call.
+        This avoids the overhead of running the full monitoring pipeline - PSI
+        window update, conformal check, CUSUM update - on a batch of size 1,
+        which would be both statistically meaningless and wasteful.
 
         The model's prediction for the current row is returned immediately,
         before the flush - monitoring always lags by at most ``flush_every``
@@ -962,7 +969,12 @@ class Monitor:
         self,
         callback: Callable[[BatchResult], None],
         *,
-        fire_on: tuple[str, ...] = ("is_drifting", "is_joint_drifting", "is_cusum_alarm", "is_critical"),
+        fire_on: tuple[str, ...] = (
+            "is_drifting",
+            "is_joint_drifting",
+            "is_cusum_alarm",
+            "is_critical",
+        ),
     ) -> None:
         """Register a callback that fires when an alarm condition is met.
 
@@ -990,7 +1002,9 @@ class Monitor:
             )
         """
         if not hasattr(self, "_alarm_callbacks"):
-            self._alarm_callbacks: list[tuple[Callable[[BatchResult], None], tuple[str, ...]]] = []
+            self._alarm_callbacks: list[
+                tuple[Callable[[BatchResult], None], tuple[str, ...]]
+            ] = []
         self._alarm_callbacks.append((callback, fire_on))
 
     def reset_after_retrain(self) -> None:
@@ -1036,7 +1050,9 @@ class Monitor:
         first :meth:`predict` call.
         """
         if not self._history:
-            return MonitorSummary(n_features=len(self._feature_names), feature_names=self._feature_names)
+            return MonitorSummary(
+                n_features=len(self._feature_names), feature_names=self._feature_names
+            )
 
         trust_scores = [
             float(r["trust_score"])  # type: ignore[arg-type]
@@ -1054,7 +1070,9 @@ class Monitor:
         mmd_drift_rate: float | None = None
         latest_mmd_p: float | None = None
         if mmd_ran:
-            mmd_drift_rate = sum(1 for r in mmd_ran if r.get("mmd_is_drift")) / len(mmd_ran)
+            mmd_drift_rate = sum(1 for r in mmd_ran if r.get("mmd_is_drift")) / len(
+                mmd_ran
+            )
             latest_mmd_p = float(mmd_ran[-1]["mmd_p_value"])  # type: ignore[arg-type]
 
         # CUSUM alarm rate
@@ -1221,7 +1239,9 @@ class Monitor:
         # Threshold advisor: save raw observations
         if self._advisor is not None:
             state["_advisor_trust"] = list(self._advisor._trust_observations)
-            state["_advisor_psi"] = [list(row) for row in self._advisor._psi_observations]
+            state["_advisor_psi"] = [
+                list(row) for row in self._advisor._psi_observations
+            ]
 
         # MMD bandwidth
         if self._mmd is not None:
@@ -1279,8 +1299,7 @@ class Monitor:
         state = _json.loads(p.read_text(encoding="utf-8"))
         if state.get("_version", 0) != 1:
             raise ValueError(
-                f"Incompatible state file version {state.get('_version')}; "
-                "expected 1"
+                f"Incompatible state file version {state.get('_version')}; expected 1"
             )
 
         cfg_data = state.get("_cfg", {})
@@ -1343,9 +1362,7 @@ class Monitor:
             if isinstance(trust_obs, list):
                 m._advisor._trust_observations = list(trust_obs)
             if isinstance(psi_obs, list):
-                m._advisor._psi_observations = [
-                    list(row) for row in psi_obs
-                ]
+                m._advisor._psi_observations = [list(row) for row in psi_obs]
 
         # Restore MMD bandwidth so it's consistent with prior batches.
         if m._mmd is not None:
